@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd luminate-support-dashboard && npm install && npm run build",
+  "outputDirectory": "luminate-support-dashboard/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
