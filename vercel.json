@@ -2,6 +2,9 @@
   "buildCommand": "npm --prefix luminate-support-dashboard install && npm --prefix luminate-support-dashboard run build",
   "outputDirectory": "luminate-support-dashboard/dist",
   "framework": null,
+  "functions": {
+    "api/**/*.js": {}
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
