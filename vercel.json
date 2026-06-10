@@ -3,7 +3,9 @@
   "outputDirectory": "luminate-support-dashboard/dist",
   "framework": null,
   "functions": {
-    "api/**/*.js": {}
+    "api/**/*.js": {
+      "memory": 128
+    }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
