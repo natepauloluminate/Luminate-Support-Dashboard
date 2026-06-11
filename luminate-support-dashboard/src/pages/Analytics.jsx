@@ -11,8 +11,13 @@ import {
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import ChartCard from '../components/ChartCard.jsx';
-import { trendData, statusData, timeData, categoryData } from '../data/mockData.js';
+import { useLiveStats } from '../hooks/useLiveStats.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
+
+// Placeholder data for charts that need per-day API endpoints (future ticket)
+const TREND_PLACEHOLDER = [];
+const TIME_PLACEHOLDER   = [];
+const CATEGORY_PLACEHOLDER = [];
 
 const tooltipStyle = {
   contentStyle: {
@@ -30,7 +35,7 @@ const tooltipStyle = {
 
 const axisTick = { fill: '#445566', fontSize: 11, fontFamily: 'Inter, sans-serif' };
 
-function TrendArea() {
+function TrendArea({ trendData }) {
   return (
     <>
       <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: '#8899AA' }}>
@@ -77,7 +82,7 @@ function TrendArea() {
   );
 }
 
-function StatusDonut() {
+function StatusDonut({ statusData }) {
   const total = statusData.reduce((s, d) => s + d.value, 0).toLocaleString();
   return (
     <>
@@ -96,7 +101,6 @@ function StatusDonut() {
             <Tooltip {...tooltipStyle} formatter={v => v.toLocaleString()} />
           </PieChart>
         </ResponsiveContainer>
-        {/* Center label — positioned over the donut hole */}
         <div style={{
           position: 'absolute',
           top: '50%',
@@ -126,7 +130,7 @@ function StatusDonut() {
   );
 }
 
-function TimeBar() {
+function TimeBar({ timeData }) {
   return (
     <>
       <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: '#8899AA' }}>
@@ -158,7 +162,7 @@ function TimeBar() {
   );
 }
 
-function CategoryBar() {
+function CategoryBar({ categoryData }) {
   const sorted = [...categoryData].sort((a, b) => b.count - a.count);
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -182,9 +186,11 @@ function CategoryBar() {
 }
 
 export default function Analytics() {
-  const [period,    setPeriod]   = useState('Today');
-  const [category,  setCategory] = useState('All Categories');
+  const [period,    setPeriod]   = useState('today');
+  const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
+
+  const { data, error, lastSync } = useLiveStats(period, section);
 
   async function handlePDF() {
     setExporting(true);
@@ -192,34 +198,41 @@ export default function Analytics() {
     setExporting(false);
   }
 
+  // Queue Status donut sourced from live all-time Stats
+  const statusData = [
+    { name: 'New',         value: data?.newTickets ?? 0, color: '#FBBF24' },
+    { name: 'In Progress', value: data?.inProcess  ?? 0, color: '#7C3AED' },
+    { name: 'Closed',      value: data?.closed     ?? 0, color: '#06B6D4' },
+  ];
+
   return (
     <div id="analytics-root">
       <Header />
       <FilterBar
-        period={period}      setPeriod={setPeriod}
-        category={category}  setCategory={setCategory}
+        period={period}    setPeriod={setPeriod}
+        section={section}  setSection={setSection}
         onExportCSV={exportCSV}
         onExportPDF={handlePDF}
         exporting={exporting}
+        lastSync={lastSync}
+        error={error}
       />
 
       <main style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Row 1 — full width trend area */}
         <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed — selected period">
-          <TrendArea />
+          <TrendArea trendData={TREND_PLACEHOLDER} />
         </ChartCard>
 
-        {/* Row 2 — three equal columns */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
           <ChartCard title="Queue Status" subtitle="Current ticket breakdown">
-            <StatusDonut />
+            <StatusDonut statusData={statusData} />
           </ChartCard>
           <ChartCard title="Time Metrics" subtitle="Avg response & resolution by day (hrs)">
-            <TimeBar />
+            <TimeBar timeData={TIME_PLACEHOLDER} />
           </ChartCard>
           <ChartCard title="By Category" subtitle="Total tickets per department">
-            <CategoryBar />
+            <CategoryBar categoryData={CATEGORY_PLACEHOLDER} />
           </ChartCard>
         </div>
 

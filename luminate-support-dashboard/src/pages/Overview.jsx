@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import MetricCard from '../components/MetricCard.jsx';
-import { metrics } from '../data/mockData.js';
+import { useLiveStats } from '../hooks/useLiveStats.js';
 import { C } from '../tokens.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
@@ -23,9 +23,11 @@ function TechBadge({ text, muted }) {
 }
 
 export default function Overview() {
-  const [period,    setPeriod]   = useState('Today');
-  const [category,  setCategory] = useState('All Categories');
+  const [period,    setPeriod]   = useState('today');
+  const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
+
+  const { data, loading, error, lastSync } = useLiveStats(period, section);
 
   async function handlePDF() {
     setExporting(true);
@@ -33,16 +35,41 @@ export default function Overview() {
     setExporting(false);
   }
 
+  // Returns live value or '—' while loading
+  const v = (key) => loading ? '—' : (data?.[key] ?? '—');
+
+  // null delta → undefined so MetricCard skips the badge
+  const d = (key) => data?.deltas?.[key] ?? undefined;
+
+  const techsOnline = data?.techsOnline ?? [];
+  const techsOOO    = data?.techsOOO    ?? [];
+
   return (
     <div id="dashboard-root">
       <Header />
       <FilterBar
-        period={period}      setPeriod={setPeriod}
-        category={category}  setCategory={setCategory}
+        period={period}    setPeriod={setPeriod}
+        section={section}  setSection={setSection}
         onExportCSV={exportCSV}
         onExportPDF={handlePDF}
         exporting={exporting}
+        lastSync={lastSync}
+        error={error}
       />
+
+      {error && (
+        <div style={{
+          margin: '10px 14px 0',
+          padding: '10px 14px',
+          background: '#1A0A0A',
+          border: '1px solid #F87171',
+          borderRadius: '6px',
+          fontSize: '13px',
+          color: '#F87171',
+        }}>
+          Unable to reach the data proxy — {error}. Retrying in 30 s.
+        </div>
+      )}
 
       <main style={{
         padding: '14px',
@@ -54,85 +81,85 @@ export default function Overview() {
         {/* Row 1 — live activity (purple) */}
         <MetricCard
           label="Tickets Opened Today"
-          value={metrics.ticketsOpenedToday.value}
-          delta={metrics.ticketsOpenedToday.delta}
+          value={v('openedCount')}
+          delta={d('opened')}
           invertDelta={true}
           accent={C.accentPurple}
           description="Tickets opened during the selected period"
         />
         <MetricCard
           label="Tickets Closed Today"
-          value={metrics.ticketsClosedToday.value}
-          delta={metrics.ticketsClosedToday.delta}
+          value={v('closedCount')}
+          delta={d('closed')}
           invertDelta={false}
           accent={C.accentPurple}
           description="Tickets closed during the selected period"
         />
         <MetricCard
           label="Tickets Per Hour"
-          value={metrics.ticketsPerHour.value}
-          delta={metrics.ticketsPerHour.delta}
+          value={v('ticketsPerHour')}
+          delta={d('perHour')}
           invertDelta={true}
           accent={C.accentPurple}
-          description="The average number of tickets created per hour"
+          description="Average tickets created per hour in the selected period"
         />
         <MetricCard
           label="Tickets Per Day"
-          value={metrics.ticketsPerDay.value}
-          delta={metrics.ticketsPerDay.delta}
+          value={v('ticketsPerDay')}
+          delta={d('perDay')}
           invertDelta={true}
           accent={C.accentPurple}
-          description="The average number of tickets created per day"
+          description="Average tickets created per day in the selected period"
         />
 
         {/* Row 2 — performance metrics (cyan) */}
         <MetricCard
           label="Response Time"
-          value={metrics.responseTime.value}
+          value={v('responseTime')}
           accent={C.accentCyan}
-          description="The response time for tickets created during the selected period"
+          description="Avg time to first response for tickets in the selected period"
         />
         <MetricCard
           label="Resolution Time"
-          value={metrics.resolutionTime.value}
+          value={v('resolutionTime')}
           accent={C.accentCyan}
-          description="The resolution time for tickets closed during the selected period"
+          description="Avg time to resolution for tickets closed in the selected period"
         />
         <MetricCard
           label="Total Tickets"
-          value={metrics.totalTickets.value}
+          value={v('totalTickets')}
           accent={C.accentCyan}
-          description="Total number of tickets"
+          description="All-time total tickets in the system"
         />
         <MetricCard
           label="Total New"
-          value={metrics.totalNew.value}
+          value={v('newTickets')}
           accent={C.accentCyan}
-          description="Total number of new tickets"
+          description="Tickets currently in New status"
         />
 
         {/* Row 3 — floor coverage (neutral) */}
         <MetricCard
           label="Total Closed"
-          value={metrics.totalClosed.value}
+          value={v('closed')}
           accent={C.accentNeutral}
-          description="Total number of closed tickets"
+          description="All-time total closed tickets"
         />
         <MetricCard
           label="Total In-Progress"
-          value={metrics.totalInProgress.value}
+          value={v('inProcess')}
           accent={C.accentNeutral}
-          description={`Total number of "in progress" tickets`}
+          description={`Total tickets currently "in progress"`}
         />
         <MetricCard
           label="Techs Online"
           value={null}
           accent={C.accentNeutral}
-          description="Technicians active during the last 10 minutes"
+          description="Technicians active in the last 10 minutes"
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {metrics.techsOnline.length
-              ? metrics.techsOnline.map(t => <TechBadge key={t} text={t} />)
+            {techsOnline.length
+              ? techsOnline.map(t => <TechBadge key={t} text={t} />)
               : <TechBadge text="none" muted />}
           </div>
         </MetricCard>
@@ -143,8 +170,8 @@ export default function Overview() {
           description={`Technicians who marked themselves as "out of office"`}
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {metrics.techsOOO.length
-              ? metrics.techsOOO.map(t => <TechBadge key={t} text={t} />)
+            {techsOOO.length
+              ? techsOOO.map(t => <TechBadge key={t} text={t} />)
               : <TechBadge text="none" muted />}
           </div>
         </MetricCard>
