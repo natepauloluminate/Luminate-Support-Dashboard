@@ -14,6 +14,10 @@ select option { background: #111B2A; }
 ::-webkit-scrollbar-thumb { background: #1B2C40; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2A3F58; }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { animation: none !important; transition: none !important; }
 }

@@ -6,6 +6,57 @@ import { useStatsCache } from '../hooks/useStatsCache.js';
 import { C } from '../tokens.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
+function LoadingScreen() {
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: '#0B1220',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 100,
+    }}>
+      {/* Signature gradient — matches the header rule */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: 2,
+        background: 'linear-gradient(90deg, transparent 0%, #7C3AED 35%, #06B6D4 65%, transparent 100%)',
+      }} />
+
+      {/* Brand lockup */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 44 }}>
+        <span style={{
+          width: 10, height: 10, borderRadius: '50%',
+          background: '#7C3AED', flexShrink: 0, display: 'inline-block',
+        }} />
+        <span style={{ fontSize: 14, fontWeight: 500, color: '#F0F4F8', letterSpacing: '-0.01em' }}>
+          Luminate Support Center
+        </span>
+      </div>
+
+      {/* Spinner */}
+      <div style={{
+        width: 36, height: 36,
+        border: '2px solid #1B2C40',
+        borderTopColor: '#7C3AED',
+        borderRadius: '50%',
+        animation: 'spin 0.75s linear infinite',
+        marginBottom: 22,
+      }} />
+
+      <div style={{ fontSize: 13, color: '#8899AA', letterSpacing: '0.01em' }}>
+        Loading real-time helpdesk data
+      </div>
+      <div style={{ fontSize: 11, color: '#445566', marginTop: 8, letterSpacing: '0.02em' }}>
+        Connecting to JitBit API
+      </div>
+    </div>
+  );
+}
+
 function TechBadge({ text, muted }) {
   return (
     <span style={{
@@ -37,6 +88,9 @@ export default function Overview() {
     await exportPDF('dashboard-root');
     setExporting(false);
   }
+
+  // Show full-screen loader on first visit only (no cached today data yet)
+  if (loading && !data) return <LoadingScreen />;
 
   const v = (key) => data ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
