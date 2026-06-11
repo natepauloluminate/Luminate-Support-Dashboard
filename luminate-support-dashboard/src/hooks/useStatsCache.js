@@ -4,6 +4,15 @@ const BASE_URL = import.meta.env.VITE_PROXY_URL || '';
 
 export const PERIODS = ['today', 'yesterday', 'last7days', 'last30days', 'thisquarter', 'thisyear'];
 
+// Periods grouped by how fast they are to fetch
+// Each group is loaded sequentially — fast periods first so the UI is usable immediately
+const LOAD_ORDER = [
+  ['today'],                              // ~2-3 s  — shows data immediately
+  ['yesterday', 'last7days'],             // ~4-6 s  — parallel, small datasets
+  ['last30days'],                         // ~8-15 s — moderate
+  ['thisquarter', 'thisyear'],            // ~20-40 s — slow; loaded last
+];
+
 // Module-level cache — survives React re-renders and SPA navigation
 const _cache = new Map();
 
@@ -19,52 +28,74 @@ export async function fetchStat(period, section) {
   return data;
 }
 
+function getCached(period, section) {
+  return _cache.get(`${period}|${section}`);
+}
+
 export function useStatsCache(section) {
   const [byPeriod, setByPeriod] = useState(() => {
-    // Seed from cache on first render so switching back to a seen section is instant
     const init = {};
     for (const p of PERIODS) {
-      const key = `${p}|${section}`;
-      if (_cache.has(key)) init[p] = _cache.get(key);
+      const v = getCached(p, section);
+      if (v) init[p] = v;
     }
     return init;
   });
-  const [loading,  setLoading]  = useState(true);
+  const [loading,  setLoading]  = useState(!getCached('today', section));
   const [error,    setError]    = useState(null);
   const [lastSync, setLastSync] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const allCached = PERIODS.every(p => _cache.has(`${p}|${section}`));
-
-    if (allCached) {
-      // Already have everything for this section — instant switch, no loading flash
-      const fromCache = {};
-      for (const p of PERIODS) fromCache[p] = _cache.get(`${p}|${section}`);
-      setByPeriod(fromCache);
+    // If everything for this section is already cached, switch is instant
+    if (PERIODS.every(p => getCached(p, section))) {
+      const all = {};
+      for (const p of PERIODS) all[p] = getCached(p, section);
+      setByPeriod(all);
       setLoading(false);
       setLastSync(prev => prev ?? new Date());
+      // Still set up the refresh interval below
     } else {
-      setLoading(true);
-      Promise.allSettled(PERIODS.map(p => fetchStat(p, section))).then(results => {
-        if (cancelled) return;
-        const newData = {};
-        let anyOk = false;
-        for (let i = 0; i < PERIODS.length; i++) {
-          if (results[i].status === 'fulfilled') {
-            newData[PERIODS[i]] = results[i].value;
-            anyOk = true;
+      setLoading(!getCached('today', section));
+
+      (async () => {
+        for (const group of LOAD_ORDER) {
+          if (cancelled) return;
+
+          // Only fetch periods not already cached
+          const needed = group.filter(p => !getCached(p, section));
+          if (needed.length) {
+            await Promise.allSettled(needed.map(p => fetchStat(p, section)));
+          }
+          if (cancelled) return;
+
+          // Update state for everything in this group (cached or just fetched)
+          const groupData = {};
+          for (const p of group) {
+            const v = getCached(p, section);
+            if (v) groupData[p] = v;
+          }
+          setByPeriod(prev => ({ ...prev, ...groupData }));
+
+          // Clear loading as soon as today is ready
+          if (group.includes('today')) {
+            const todayData = getCached('today', section);
+            if (todayData) {
+              setLoading(false);
+              setLastSync(new Date());
+              setError(null);
+            } else {
+              setLoading(false);
+              setError('Failed to load — check connection');
+              return;
+            }
           }
         }
-        setByPeriod(prev => ({ ...prev, ...newData }));
-        setLoading(false);
-        if (anyOk) { setLastSync(new Date()); setError(null); }
-        else setError('Failed to load — check connection');
-      });
+      })();
     }
 
-    // Only refresh "today" on the 30s interval — historical periods never change mid-session
+    // Only refresh "today" on the 30 s interval — historical periods don't change mid-session
     async function refreshToday() {
       if (document.hidden) return;
       _cache.delete(`today|${section}`);
@@ -74,7 +105,7 @@ export function useStatsCache(section) {
           setByPeriod(prev => ({ ...prev, today: data }));
           setLastSync(new Date());
         }
-      } catch { /* silent — error state preserved from last successful load */ }
+      } catch { /* silent */ }
     }
 
     const intervalId = setInterval(refreshToday, 30000);

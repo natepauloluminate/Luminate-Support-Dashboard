@@ -216,11 +216,16 @@ module.exports = async function handler(req, res) {
     const now = new Date();
     const currentHour = now.getUTCHours();
 
+    // Skip prior-period fetch for long periods — too many paginated calls, delta not meaningful at year scale
+    const skipDelta = period === 'thisquarter' || period === 'thisyear';
+
     const [stats, techUsers, currentMetrics, priorMetrics] = await Promise.all([
       fetchStats(),
       fetchTechs(),
       fetchPeriodMetrics(currentDates, sectionId),
-      fetchPeriodMetrics(priorDates, sectionId),
+      skipDelta
+        ? Promise.resolve({ openedTickets: [], closedTickets: [] })
+        : fetchPeriodMetrics(priorDates, sectionId),
     ]);
 
     const openedCount = currentMetrics.openedTickets.length;
