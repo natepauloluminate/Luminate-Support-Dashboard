@@ -48,14 +48,11 @@ export default function Header() {
       }}>
         {/* Brand lockup */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: '#7C3AED',
-            flexShrink: 0,
-            display: 'inline-block',
-          }} />
+          <img
+            src="/luminate-logo.webp"
+            alt="Luminate"
+            style={{ width: 22, height: 22, flexShrink: 0, display: 'block', objectFit: 'contain' }}
+          />
           <span style={{
             fontSize: '14px',
             fontWeight: 500,

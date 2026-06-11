@@ -28,10 +28,11 @@ function LoadingScreen() {
 
       {/* Brand lockup */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 44 }}>
-        <span style={{
-          width: 10, height: 10, borderRadius: '50%',
-          background: '#7C3AED', flexShrink: 0, display: 'inline-block',
-        }} />
+        <img
+          src="/luminate-logo.webp"
+          alt="Luminate"
+          style={{ width: 24, height: 24, flexShrink: 0, display: 'block', objectFit: 'contain' }}
+        />
         <span style={{ fontSize: 14, fontWeight: 500, color: '#F0F4F8', letterSpacing: '-0.01em' }}>
           Luminate Support Center
         </span>
