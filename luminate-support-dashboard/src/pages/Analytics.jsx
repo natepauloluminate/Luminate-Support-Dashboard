@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
   AreaChart, Area,
@@ -11,13 +11,17 @@ import {
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import ChartCard from '../components/ChartCard.jsx';
-import { useLiveStats } from '../hooks/useLiveStats.js';
+import { useStatsCache, fetchStat } from '../hooks/useStatsCache.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
-// Placeholder data for charts that need per-day API endpoints (future ticket)
-const TREND_PLACEHOLDER = [];
-const TIME_PLACEHOLDER   = [];
-const CATEGORY_PLACEHOLDER = [];
+const SECTION_META = [
+  { id: '163173', name: 'IT' },
+  { id: '168963', name: 'HR' },
+  { id: '167008', name: 'Accounting' },
+  { id: '167041', name: 'Branch & Loan' },
+  { id: '167039', name: 'Bank Ops' },
+  { id: '167044', name: 'Other' },
+];
 
 const tooltipStyle = {
   contentStyle: {
@@ -64,16 +68,12 @@ function TrendArea({ trendData }) {
           <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
           <YAxis tick={axisTick} axisLine={false} tickLine={false} />
           <Tooltip {...tooltipStyle} />
-          <Area
-            type="monotone" dataKey="opened" name="Opened"
-            stroke="#7C3AED" strokeWidth={2}
-            fill="url(#gOpened)" dot={false}
+          <Area type="monotone" dataKey="opened" name="Opened"
+            stroke="#7C3AED" strokeWidth={2} fill="url(#gOpened)" dot={false}
             activeDot={{ r: 4, fill: '#7C3AED' }}
           />
-          <Area
-            type="monotone" dataKey="closed" name="Closed"
-            stroke="#06B6D4" strokeWidth={2}
-            fill="url(#gClosed)" dot={false}
+          <Area type="monotone" dataKey="closed" name="Closed"
+            stroke="#06B6D4" strokeWidth={2} fill="url(#gClosed)" dot={false}
             activeDot={{ r: 4, fill: '#06B6D4' }}
           />
         </AreaChart>
@@ -102,12 +102,9 @@ function StatusDonut({ statusData }) {
           </PieChart>
         </ResponsiveContainer>
         <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
+          position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%,-50%)',
-          textAlign: 'center',
-          pointerEvents: 'none',
+          textAlign: 'center', pointerEvents: 'none',
         }}>
           <div style={{ fontSize: 20, fontWeight: 500, color: '#F0F4F8', fontVariantNumeric: 'tabular-nums' }}>
             {total}
@@ -144,12 +141,7 @@ function TimeBar({ timeData }) {
         </span>
       </div>
       <ResponsiveContainer width="100%" height={170}>
-        <BarChart
-          data={timeData}
-          margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-          barGap={2}
-          barCategoryGap="35%"
-        >
+        <BarChart data={timeData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }} barGap={2} barCategoryGap="35%">
           <CartesianGrid strokeDasharray="3 3" stroke="#1B2C40" vertical={false} />
           <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} />
           <YAxis tick={axisTick} axisLine={false} tickLine={false} />
@@ -186,11 +178,27 @@ function CategoryBar({ categoryData }) {
 }
 
 export default function Analytics() {
-  const [period,    setPeriod]   = useState('today');
+  const [period,    setPeriod]   = useState('last7days');
   const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
+  const [categoryData, setCategoryData] = useState([]);
 
-  const { data, error, lastSync } = useLiveStats(period, section);
+  const { getStats, error, lastSync, loading } = useStatsCache(section);
+  const data = getStats(period);
+
+  // Fetch per-section ticket counts to power the CategoryBar
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled(
+      SECTION_META.map(s =>
+        fetchStat(period, s.id).then(d => ({ name: s.name, count: d.openedCount ?? 0 }))
+      )
+    ).then(results => {
+      if (cancelled) return;
+      setCategoryData(results.filter(r => r.status === 'fulfilled').map(r => r.value));
+    });
+    return () => { cancelled = true; };
+  }, [period]);
 
   async function handlePDF() {
     setExporting(true);
@@ -198,12 +206,14 @@ export default function Analytics() {
     setExporting(false);
   }
 
-  // Queue Status donut sourced from live all-time Stats
   const statusData = [
     { name: 'New',         value: data?.newTickets ?? 0, color: '#FBBF24' },
     { name: 'In Progress', value: data?.inProcess  ?? 0, color: '#7C3AED' },
     { name: 'Closed',      value: data?.closed     ?? 0, color: '#06B6D4' },
   ];
+
+  const trendData = data?.trendData ?? [];
+  const timeData  = data?.timeData  ?? [];
 
   return (
     <div id="analytics-root">
@@ -216,12 +226,13 @@ export default function Analytics() {
         exporting={exporting}
         lastSync={lastSync}
         error={error}
+        loading={loading}
       />
 
       <main style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed — selected period">
-          <TrendArea trendData={TREND_PLACEHOLDER} />
+          <TrendArea trendData={trendData} />
         </ChartCard>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
@@ -229,10 +240,10 @@ export default function Analytics() {
             <StatusDonut statusData={statusData} />
           </ChartCard>
           <ChartCard title="Time Metrics" subtitle="Avg response & resolution by day (hrs)">
-            <TimeBar timeData={TIME_PLACEHOLDER} />
+            <TimeBar timeData={timeData} />
           </ChartCard>
-          <ChartCard title="By Category" subtitle="Total tickets per department">
-            <CategoryBar categoryData={CATEGORY_PLACEHOLDER} />
+          <ChartCard title="By Category" subtitle="Tickets opened per department — selected period">
+            <CategoryBar categoryData={categoryData} />
           </ChartCard>
         </div>
 

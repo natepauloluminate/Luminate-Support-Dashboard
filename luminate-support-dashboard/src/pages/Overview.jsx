@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import MetricCard from '../components/MetricCard.jsx';
-import { useLiveStats } from '../hooks/useLiveStats.js';
+import { useStatsCache } from '../hooks/useStatsCache.js';
 import { C } from '../tokens.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
@@ -27,7 +27,10 @@ export default function Overview() {
   const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
 
-  const { data, loading, error, lastSync } = useLiveStats(period, section);
+  const { getStats, loading, error, lastSync } = useStatsCache(section);
+
+  // Switching period is a synchronous cache lookup — no network call, no flicker
+  const data = getStats(period);
 
   async function handlePDF() {
     setExporting(true);
@@ -35,10 +38,7 @@ export default function Overview() {
     setExporting(false);
   }
 
-  // Returns live value or '—' while loading
-  const v = (key) => loading ? '—' : (data?.[key] ?? '—');
-
-  // null delta → undefined so MetricCard skips the badge
+  const v = (key) => data ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
 
   const techsOnline = data?.techsOnline ?? [];
@@ -55,6 +55,7 @@ export default function Overview() {
         exporting={exporting}
         lastSync={lastSync}
         error={error}
+        loading={loading}
       />
 
       {error && (

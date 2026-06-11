@@ -23,7 +23,7 @@ export default function FilterBar({
   period, setPeriod,
   section, setSection,
   onExportCSV, onExportPDF, exporting,
-  lastSync, error,
+  lastSync, error, loading,
 }) {
   const [csvHover, setCsvHover] = useState(false);
   const [pdfHover, setPdfHover] = useState(false);
@@ -68,6 +68,8 @@ export default function FilterBar({
   const dotColor    = error ? '#F87171' : lastSync ? '#34D399' : '#445566';
   const statusLabel = error
     ? 'Error — retrying'
+    : loading
+    ? 'Loading…'
     : lastSync
     ? `Synced ${lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     : 'Connecting…';

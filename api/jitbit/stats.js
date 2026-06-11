@@ -127,6 +127,57 @@ function safeDelta(current, prior) {
   return Math.round(((current - prior) / prior) * 10000) / 100;
 }
 
+// Build [{date: 'Jun 5', opened: N, closed: N}, ...] from ticket arrays
+function buildTrendData(openedTickets, closedTickets, dates) {
+  const days = {};
+  const from = new Date(dates.dateFrom + 'T00:00:00Z');
+  const to   = new Date(dates.dateTo   + 'T00:00:00Z');
+  for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    days[toYMD(d)] = { opened: 0, closed: 0 };
+  }
+  for (const t of openedTickets) {
+    const day = t.IssueDate?.slice(0, 10);
+    if (day && days[day]) days[day].opened++;
+  }
+  for (const t of closedTickets) {
+    const day = t.ResolvedDate?.slice(0, 10);
+    if (day && days[day]) days[day].closed++;
+  }
+  return Object.entries(days).map(([date, counts]) => ({
+    date: new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    ...counts,
+  }));
+}
+
+// Build [{day: 'Mon', response: 0.7, resolution: 32.5}, ...] from opened tickets
+function buildTimeData(openedTickets, dates) {
+  const days = {};
+  const from = new Date(dates.dateFrom + 'T00:00:00Z');
+  const to   = new Date(dates.dateTo   + 'T00:00:00Z');
+  for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    days[toYMD(d)] = { rt: [], rst: [] };
+  }
+  for (const t of openedTickets) {
+    const day = t.IssueDate?.slice(0, 10);
+    if (!day || !days[day]) continue;
+    if (t.StartDate) {
+      const ms = new Date(t.StartDate) - new Date(t.IssueDate);
+      if (ms >= 0) days[day].rt.push(ms);
+    }
+    if (t.ResolvedDate) {
+      const ms = new Date(t.ResolvedDate) - new Date(t.IssueDate);
+      if (ms >= 0) days[day].rst.push(ms);
+    }
+  }
+  const avgHours = (arr) =>
+    arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / 360000) / 10 : 0;
+  return Object.entries(days).map(([date, d]) => ({
+    day: new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' }),
+    response:   avgHours(d.rt),
+    resolution: avgHours(d.rst),
+  }));
+}
+
 async function fetchPeriodMetrics(dates, sectionId) {
   const openParams = { dateFrom: dates.dateFrom, dateTo: dates.dateTo };
   if (sectionId) openParams.sectionId = sectionId;
@@ -196,27 +247,25 @@ module.exports = async function handler(req, res) {
       period,
       dateFrom: currentDates.dateFrom,
       dateTo: currentDates.dateTo,
-      // All-time stats from /api/Stats
       totalTickets: stats.TotalTickets,
       newTickets: stats.NewTickets,
       closed: stats.Closed,
       inProcess: stats.InProcess,
-      // Period-based ticket metrics
       openedCount,
       closedCount,
       ticketsPerHour,
       ticketsPerDay,
       responseTime,
       resolutionTime,
-      // Team status (empty arrays if admin access unavailable)
       techsOnline,
       techsOOO,
-      // Signed % deltas vs prior period (null when prior = 0)
+      trendData: buildTrendData(currentMetrics.openedTickets, currentMetrics.closedTickets, currentDates),
+      timeData:  buildTimeData(currentMetrics.openedTickets, currentDates),
       deltas: {
-        opened: safeDelta(openedCount, priorOpened),
-        closed: safeDelta(closedCount, priorClosed),
+        opened:  safeDelta(openedCount, priorOpened),
+        closed:  safeDelta(closedCount, priorClosed),
         perHour: safeDelta(ticketsPerHour, priorPerHour),
-        perDay: safeDelta(ticketsPerDay, priorPerDay),
+        perDay:  safeDelta(ticketsPerDay, priorPerDay),
       },
     });
   } catch (err) {
