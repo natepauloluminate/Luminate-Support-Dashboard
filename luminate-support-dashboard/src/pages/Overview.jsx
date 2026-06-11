@@ -41,8 +41,9 @@ export default function Overview() {
   const v = (key) => data ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
 
-  const techsOnline = data?.techsOnline ?? [];
-  const techsOOO    = data?.techsOOO    ?? [];
+  const techsOnline    = data?.techsOnline    ?? [];
+  const techsOOO      = data?.techsOOO      ?? [];
+  const techsAccessible = data?.techsAccessible ?? null;
 
   return (
     <div id="dashboard-root">
@@ -159,9 +160,13 @@ export default function Overview() {
           description="Technicians active in the last 10 minutes"
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {techsOnline.length
+            {techsAccessible === false
+              ? <TechBadge text="needs admin access" muted />
+              : techsOnline.length
               ? techsOnline.map(t => <TechBadge key={t} text={t} />)
-              : <TechBadge text="none" muted />}
+              : techsAccessible === true
+              ? <TechBadge text="none" muted />
+              : <TechBadge text="—" muted />}
           </div>
         </MetricCard>
         <MetricCard
@@ -171,9 +176,13 @@ export default function Overview() {
           description={`Technicians who marked themselves as "out of office"`}
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {techsOOO.length
+            {techsAccessible === false
+              ? <TechBadge text="needs admin access" muted />
+              : techsOOO.length
               ? techsOOO.map(t => <TechBadge key={t} text={t} />)
-              : <TechBadge text="none" muted />}
+              : techsAccessible === true
+              ? <TechBadge text="none" muted />
+              : <TechBadge text="—" muted />}
           </div>
         </MetricCard>
 

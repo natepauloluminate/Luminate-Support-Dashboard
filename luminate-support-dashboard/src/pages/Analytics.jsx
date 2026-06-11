@@ -145,7 +145,11 @@ function TimeBar({ timeData }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#1B2C40" vertical={false} />
           <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} />
           <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipStyle} formatter={(v, n) => [`${v}h`, n]} />
+          <Tooltip
+            {...tooltipStyle}
+            formatter={(v, n) => [`${v}h`, n]}
+            labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? _}
+          />
           <Bar dataKey="resolution" name="Resolution" fill="#7C3AED" radius={[3,3,0,0]} maxBarSize={12} />
           <Bar dataKey="response"   name="Response"   fill="#06B6D4" radius={[3,3,0,0]} maxBarSize={12} />
         </BarChart>
@@ -206,10 +210,10 @@ export default function Analytics() {
     setExporting(false);
   }
 
+  // Use period + section filtered counts so the donut reflects active filters
   const statusData = [
-    { name: 'New',         value: data?.newTickets ?? 0, color: '#FBBF24' },
-    { name: 'In Progress', value: data?.inProcess  ?? 0, color: '#7C3AED' },
-    { name: 'Closed',      value: data?.closed     ?? 0, color: '#06B6D4' },
+    { name: 'Opened', value: data?.openedCount ?? 0, color: '#7C3AED' },
+    { name: 'Closed', value: data?.closedCount ?? 0, color: '#06B6D4' },
   ];
 
   const trendData = data?.trendData ?? [];
@@ -236,7 +240,7 @@ export default function Analytics() {
         </ChartCard>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
-          <ChartCard title="Queue Status" subtitle="Current ticket breakdown">
+          <ChartCard title="Queue Status" subtitle="Opened vs. closed — selected period &amp; section">
             <StatusDonut statusData={statusData} />
           </ChartCard>
           <ChartCard title="Time Metrics" subtitle="Avg response & resolution by day (hrs)">

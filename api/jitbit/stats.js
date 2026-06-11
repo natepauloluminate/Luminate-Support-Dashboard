@@ -89,10 +89,11 @@ async function fetchAllTickets(params) {
 async function fetchTechs() {
   try {
     const res = await fetch(`${JITBIT_BASE_URL}Users?listMode=techs&count=500`, { headers: jitbitHeaders() });
-    if (!res.ok) return null;
-    return res.json();
+    if (!res.ok) return { accessible: false, users: null };
+    const users = await res.json();
+    return { accessible: true, users };
   } catch {
-    return null;
+    return { accessible: false, users: null };
   }
 }
 
@@ -171,11 +172,17 @@ function buildTimeData(openedTickets, dates) {
   }
   const avgHours = (arr) =>
     arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / 360000) / 10 : 0;
-  return Object.entries(days).map(([date, d]) => ({
-    day: new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' }),
-    response:   avgHours(d.rt),
-    resolution: avgHours(d.rst),
-  }));
+  return Object.entries(days).map(([date, d]) => {
+    const dateObj  = new Date(date + 'T12:00:00Z');
+    const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekday   = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    return {
+      day:        shortDate,
+      label:      `${weekday}, ${shortDate}`,
+      response:   avgHours(d.rt),
+      resolution: avgHours(d.rst),
+    };
+  });
 }
 
 async function fetchPeriodMetrics(dates, sectionId) {
@@ -231,12 +238,13 @@ module.exports = async function handler(req, res) {
 
     let techsOnline = [];
     let techsOOO = [];
-    if (techUsers) {
+    const techsAccessible = techUsers.accessible;
+    if (techUsers.accessible && techUsers.users) {
       const tenMinAgo = new Date(now - 10 * 60 * 1000);
-      techsOnline = techUsers
+      techsOnline = techUsers.users
         .filter(u => u.LastSeen && new Date(u.LastSeen) >= tenMinAgo)
         .map(u => u.Email || u.Username);
-      techsOOO = techUsers
+      techsOOO = techUsers.users
         .filter(u => u.OutOfOffice === true)
         .map(u => u.Email || u.Username);
     }
@@ -259,6 +267,7 @@ module.exports = async function handler(req, res) {
       resolutionTime,
       techsOnline,
       techsOOO,
+      techsAccessible,
       trendData: buildTrendData(currentMetrics.openedTickets, currentMetrics.closedTickets, currentDates),
       timeData:  buildTimeData(currentMetrics.openedTickets, currentDates),
       deltas: {
