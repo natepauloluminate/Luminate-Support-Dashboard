@@ -14,6 +14,15 @@ import ChartCard from '../components/ChartCard.jsx';
 import { useStatsCache, fetchStat } from '../hooks/useStatsCache.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
+const DEPT_COLORS = [
+  '#7C3AED', // violet  — primary brand
+  '#06B6D4', // cyan    — secondary brand
+  '#34D399', // emerald — positive
+  '#FBBF24', // amber   — warning
+  '#818CF8', // indigo  — soft complement to violet
+  '#F87171', // coral   — negative
+];
+
 const SECTION_META = [
   { id: '163173', name: 'IT' },
   { id: '168963', name: 'HR' },
@@ -173,7 +182,7 @@ function CategoryBar({ categoryData }) {
         <Tooltip {...tooltipStyle} />
         <Bar dataKey="count" name="Tickets" radius={[0,3,3,0]} maxBarSize={12}>
           {sorted.map((entry, i) => (
-            <Cell key={entry.name} fill={i === 0 ? '#7C3AED' : '#1B2C40'} />
+            <Cell key={entry.name} fill={DEPT_COLORS[i % DEPT_COLORS.length]} />
           ))}
         </Bar>
       </BarChart>
