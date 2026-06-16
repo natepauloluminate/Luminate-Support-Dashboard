@@ -122,6 +122,16 @@ export default function Overview() {
   const responseSLA   = data?.responseSLA   ?? null;
   const resolutionSLA = data?.resolutionSLA ?? null;
 
+  const PERIOD_LABEL = {
+    today:       'Today',
+    yesterday:   'Yesterday',
+    last7days:   'Last 7 Days',
+    last30days:  'Last 30 Days',
+    thisquarter: 'This Quarter',
+    thisyear:    'This Year',
+  };
+  const pl = PERIOD_LABEL[period] ?? period;
+
   return (
     <div id="dashboard-root">
       <Header />
@@ -159,36 +169,36 @@ export default function Overview() {
 
         {/* Row 1 — live activity (purple) */}
         <MetricCard
-          label="Tickets Opened Today"
+          label={`Tickets Opened — ${pl}`}
           value={v('openedCount')}
           delta={d('opened')}
           invertDelta={true}
           accent={C.accentPurple}
-          description="Tickets opened during the selected period"
+          description={`Tickets opened during ${pl}`}
         />
         <MetricCard
-          label="Tickets Closed Today"
+          label={`Tickets Closed — ${pl}`}
           value={v('closedCount')}
           delta={d('closed')}
           invertDelta={false}
           accent={C.accentPurple}
-          description="Tickets closed during the selected period"
+          description={`Tickets closed during ${pl}`}
         />
         <MetricCard
-          label="Tickets Per Hour"
+          label={`Tickets Per Hour — ${pl}`}
           value={v('ticketsPerHour')}
           delta={d('perHour')}
           invertDelta={true}
           accent={C.accentPurple}
-          description="Average tickets created per hour in the selected period"
+          description={`Avg tickets created per hour during ${pl}`}
         />
         <MetricCard
-          label="Tickets Per Day"
+          label={`Tickets Per Day — ${pl}`}
           value={v('ticketsPerDay')}
           delta={d('perDay')}
           invertDelta={true}
           accent={C.accentPurple}
-          description="Average tickets created per day in the selected period"
+          description={`Avg tickets created per day during ${pl}`}
         />
 
         {/* Row 2 — performance metrics (cyan) */}
@@ -196,13 +206,13 @@ export default function Overview() {
           label="Response Time"
           value={v('responseTime')}
           accent={C.accentCyan}
-          description="Avg time to first response for tickets in the selected period"
+          description={`Avg time to first response for tickets during ${pl}`}
         />
         <MetricCard
           label="Resolution Time"
           value={v('resolutionTime')}
           accent={C.accentCyan}
-          description="Avg time to resolution for tickets closed in the selected period"
+          description={`Avg time to resolution for tickets closed during ${pl}`}
         />
         <MetricCard
           label="Total Tickets"
