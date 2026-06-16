@@ -97,12 +97,29 @@ async function fetchTechs() {
   }
 }
 
+const SLA_RESPONSE_MS  = 4  * 60 * 60 * 1000;   // 4 hours
+const SLA_RESOLUTION_MS = 72 * 60 * 60 * 1000;  // 72 hours
+
 function formatDuration(ms) {
   if (ms <= 0) return '0h 0m';
   const totalMinutes = Math.round(ms / 60000);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${h}h ${m}m`;
+}
+
+function calcResponseSLA(tickets) {
+  const responded = tickets.filter(t => t.StartDate && t.IssueDate);
+  const met = responded.filter(t => (new Date(t.StartDate) - new Date(t.IssueDate)) <= SLA_RESPONSE_MS && (new Date(t.StartDate) - new Date(t.IssueDate)) >= 0);
+  const pct = responded.length > 0 ? Math.round((met.length / responded.length) * 1000) / 10 : null;
+  return { target: '04:00', met: met.length, total: responded.length, pct };
+}
+
+function calcResolutionSLA(tickets) {
+  const resolved = tickets.filter(t => t.ResolvedDate && t.IssueDate);
+  const met = resolved.filter(t => (new Date(t.ResolvedDate) - new Date(t.IssueDate)) <= SLA_RESOLUTION_MS && (new Date(t.ResolvedDate) - new Date(t.IssueDate)) >= 0);
+  const pct = resolved.length > 0 ? Math.round((met.length / resolved.length) * 1000) / 10 : null;
+  return { target: '72:00', met: met.length, total: resolved.length, pct };
 }
 
 function calcResponseTime(tickets) {
@@ -273,6 +290,8 @@ module.exports = async function handler(req, res) {
       techsOnline,
       techsOOO,
       techsAccessible,
+      responseSLA:   calcResponseSLA(currentMetrics.openedTickets),
+      resolutionSLA: calcResolutionSLA(currentMetrics.closedTickets),
       trendData: buildTrendData(currentMetrics.openedTickets, currentMetrics.closedTickets, currentDates),
       timeData:  buildTimeData(currentMetrics.openedTickets, currentDates),
       deltas: {

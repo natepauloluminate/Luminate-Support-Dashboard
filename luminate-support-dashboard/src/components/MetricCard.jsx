@@ -16,7 +16,9 @@ export default function MetricCard({ label, value, delta, invertDelta, descripti
     <div
       style={{
         background: '#111B2A',
-        border: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderLeft: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderRight: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderBottom: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
         borderTop: `2px solid ${accent}`,
         borderRadius: '8px',
         padding: '16px 18px 14px',

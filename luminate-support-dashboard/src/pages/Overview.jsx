@@ -58,19 +58,42 @@ function LoadingScreen() {
   );
 }
 
-function TechBadge({ text, muted }) {
+function SLACard({ label, target, pct, met, total }) {
+  const [hovered, setHovered] = useState(false);
+  const color = pct === null ? '#445566'
+    : pct >= 90 ? '#34D399'
+    : pct >= 70 ? '#FBBF24'
+    : '#F87171';
+
   return (
-    <span style={{
-      background: muted ? 'transparent' : '#162030',
-      border: '1px solid #1B2C40',
-      borderRadius: '4px',
-      padding: '3px 9px',
-      fontSize: '12px',
-      color: muted ? '#445566' : '#8899AA',
-      fontFamily: 'inherit',
-    }}>
-      {text}
-    </span>
+    <div
+      style={{
+        background: '#111B2A',
+        borderLeft: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderRight: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderBottom: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        borderTop: '2px solid #1B2C40',
+        borderRadius: '8px',
+        padding: '16px 18px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '110px',
+        transition: 'border-color 150ms ease',
+        cursor: 'default',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={{ fontSize: '10.5px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#445566', marginBottom: 10 }}>
+        {label}&nbsp;<span style={{ textTransform: 'none', letterSpacing: 0, color: '#8899AA' }}>({target})</span>
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 500, color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
+        {pct !== null ? `${pct}%` : '—'}
+      </div>
+      <div style={{ fontSize: '11.5px', color: '#445566', marginTop: 'auto', paddingTop: 6 }}>
+        {pct !== null ? `${met.toLocaleString()} / ${total.toLocaleString()} met` : 'No data'}
+      </div>
+    </div>
   );
 }
 
@@ -96,9 +119,8 @@ export default function Overview() {
   const v = (key) => data ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
 
-  const techsOnline    = data?.techsOnline    ?? [];
-  const techsOOO      = data?.techsOOO      ?? [];
-  const techsAccessible = data?.techsAccessible ?? null;
+  const responseSLA   = data?.responseSLA   ?? null;
+  const resolutionSLA = data?.resolutionSLA ?? null;
 
   return (
     <div id="dashboard-root">
@@ -195,7 +217,7 @@ export default function Overview() {
           description="Tickets currently in New status"
         />
 
-        {/* Row 3 — floor coverage (neutral) */}
+        {/* Row 3 — status totals + SLA */}
         <MetricCard
           label="Total Closed"
           value={v('closed')}
@@ -208,38 +230,20 @@ export default function Overview() {
           accent={C.accentNeutral}
           description={`Total tickets currently "in progress"`}
         />
-        <MetricCard
-          label="Techs Online"
-          value={null}
-          accent={C.accentNeutral}
-          description="Technicians active in the last 10 minutes"
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {techsAccessible === false
-              ? <TechBadge text="needs admin access" muted />
-              : techsOnline.length
-              ? techsOnline.map(t => <TechBadge key={t} text={t} />)
-              : techsAccessible === true
-              ? <TechBadge text="none" muted />
-              : <TechBadge text="—" muted />}
-          </div>
-        </MetricCard>
-        <MetricCard
-          label={`Techs "Out of Office"`}
-          value={null}
-          accent={C.accentNeutral}
-          description={`Technicians who marked themselves as "out of office"`}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '2px 0 4px' }}>
-            {techsAccessible === false
-              ? <TechBadge text="needs admin access" muted />
-              : techsOOO.length
-              ? techsOOO.map(t => <TechBadge key={t} text={t} />)
-              : techsAccessible === true
-              ? <TechBadge text="none" muted />
-              : <TechBadge text="—" muted />}
-          </div>
-        </MetricCard>
+        <SLACard
+          label="Response SLA"
+          target={responseSLA?.target ?? '04:00'}
+          pct={responseSLA?.pct ?? null}
+          met={responseSLA?.met ?? 0}
+          total={responseSLA?.total ?? 0}
+        />
+        <SLACard
+          label="Resolution SLA"
+          target={resolutionSLA?.target ?? '72:00'}
+          pct={resolutionSLA?.pct ?? null}
+          met={resolutionSLA?.met ?? 0}
+          total={resolutionSLA?.total ?? 0}
+        />
 
       </main>
     </div>
