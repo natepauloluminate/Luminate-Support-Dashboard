@@ -1,4 +1,4 @@
-export default function ChartCard({ title, subtitle, children }) {
+export default function ChartCard({ title, subtitle, children, loading }) {
   return (
     <div style={{
       background: 'var(--bg-card)',
@@ -19,7 +19,18 @@ export default function ChartCard({ title, subtitle, children }) {
       <div style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '3px 0 16px' }}>
         {subtitle}
       </div>
-      {children}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 180 }}>
+          <div style={{
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            border: '3px solid var(--border)',
+            borderTopColor: 'var(--purple)',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+        </div>
+      ) : children}
     </div>
   );
 }

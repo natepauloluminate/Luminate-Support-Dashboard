@@ -199,6 +199,7 @@ export default function Analytics() {
   const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
   const [categoryData, setCategoryData] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(true);
 
   const theme = useTheme();
   const isDark = theme !== 'light';
@@ -218,6 +219,7 @@ export default function Analytics() {
   // Fetch per-section ticket counts to power the CategoryBar
   useEffect(() => {
     let cancelled = false;
+    setCategoryLoading(true);
     Promise.allSettled(
       SECTION_META.map(s =>
         fetchStat(period, s.id).then(d => ({ name: s.name, count: d.openedCount ?? 0 }))
@@ -225,6 +227,7 @@ export default function Analytics() {
     ).then(results => {
       if (cancelled) return;
       setCategoryData(results.filter(r => r.status === 'fulfilled').map(r => r.value));
+      setCategoryLoading(false);
     });
     return () => { cancelled = true; };
   }, [period]);
@@ -241,6 +244,7 @@ export default function Analytics() {
     { name: 'Closed', value: data?.closedCount ?? 0, color: '#06B6D4' },
   ];
 
+  const chartLoading = data === null;
   const trendData = data?.trendData ?? [];
   const timeData  = data?.timeData  ?? [];
 
@@ -264,18 +268,18 @@ export default function Analytics() {
 
       <main style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed">
+        <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed" loading={chartLoading}>
           <TrendArea trendData={trendData} ch={ch} />
         </ChartCard>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
-          <ChartCard title="Queue Status" subtitle={`Opened vs. closed — ${periodLabel}, ${sectionLabel}`}>
+          <ChartCard title="Queue Status" subtitle={`Opened vs. closed — ${periodLabel}, ${sectionLabel}`} loading={chartLoading}>
             <StatusDonut statusData={statusData} ch={ch} />
           </ChartCard>
-          <ChartCard title="Time Metrics" subtitle="Avg response &amp; resolution by day (business hours)">
+          <ChartCard title="Time Metrics" subtitle="Avg response &amp; resolution by day (business hours)" loading={chartLoading}>
             <TimeBar timeData={timeData} ch={ch} />
           </ChartCard>
-          <ChartCard title="By Category" subtitle={`Tickets opened per department — ${periodLabel}`}>
+          <ChartCard title="By Category" subtitle={`Tickets opened per department — ${periodLabel}`} loading={categoryLoading}>
             <CategoryBar categoryData={categoryData} ch={ch} />
           </ChartCard>
         </div>
