@@ -1,27 +1,27 @@
 export const C = {
-  pageBg:      '#0B1220',
-  headerBg:    '#070D17',
-  filterBg:    '#0D1825',
-  cardBg:      '#111B2A',
-  surfaceUp:   '#162030',
-  border:      '#1B2C40',
-  borderHover: '#2A3F58',
+  pageBg:      'var(--bg-page)',
+  headerBg:    'var(--bg-header)',
+  filterBg:    'var(--bg-filter)',
+  cardBg:      'var(--bg-card)',
+  surfaceUp:   'var(--bg-surface)',
+  border:      'var(--border)',
+  borderHover: 'var(--border-hover)',
 
-  purple:      '#7C3AED',
-  purpleSoft:  'rgba(124,58,237,0.12)',
-  cyan:        '#06B6D4',
-  cyanSoft:    'rgba(6,182,212,0.12)',
-  amber:       '#FBBF24',
+  purple:      'var(--purple)',
+  purpleSoft:  'var(--purple-soft)',
+  cyan:        'var(--cyan)',
+  cyanSoft:    'var(--cyan-soft)',
+  amber:       'var(--amber)',
 
-  positive:    '#34D399',
-  negative:    '#F87171',
+  positive:    'var(--positive)',
+  negative:    'var(--negative)',
 
-  textPrimary:   '#F0F4F8',
-  textSecondary: '#8899AA',
-  textMuted:     '#445566',
+  textPrimary:   'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted:     'var(--text-muted)',
 
   // Card top-border accent by row — encodes meaning, not decoration
-  accentPurple:  '#7C3AED',   // Row 1: live activity
-  accentCyan:    '#06B6D4',   // Row 2: performance metrics
-  accentNeutral: '#1B2C40',   // Row 3: same as border — invisible
+  accentPurple:  'var(--purple)',   // Row 1: live activity
+  accentCyan:    'var(--cyan)',     // Row 2: performance metrics
+  accentNeutral: 'var(--border)',   // Row 3: same as border — invisible
 };

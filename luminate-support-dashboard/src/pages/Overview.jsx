@@ -1,17 +1,182 @@
 import { useState } from 'react';
+import {
+  ResponsiveContainer,
+  BarChart, Bar,
+  XAxis, YAxis,
+  LabelList,
+  Cell,
+} from 'recharts';
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import MetricCard from '../components/MetricCard.jsx';
 import { useStatsCache } from '../hooks/useStatsCache.js';
+import { useTheme } from '../hooks/useTheme.js';
 import { C } from '../tokens.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
+
+const ALL_TIME_COLORS = ['#7C3AED', '#06B6D4', '#FBBF24', '#F87171'];
+
+const SECTION_LABELS = {
+  '163173': 'Information Technology',
+  '168963': 'Human Resources',
+  '167008': 'Accounting / Finance',
+  '167041': 'Branch & Loan Operations',
+  '167039': 'Bank Operations',
+  '167044': 'Other',
+};
+
+function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFill, labelFill }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const openCount = Math.max(0, total - closed - inProcess);
+  const closedPct = total > 0 ? Math.round((closed / total) * 1000) / 10 : 0;
+
+  const subtitle = section
+    ? `${SECTION_LABELS[section] ?? 'Selected section'} — this year's counts`
+    : 'System-wide ticket counts — all sections, all time';
+
+  const chartData = [
+    { label: 'Total Tickets', value: total     },
+    { label: 'Closed',        value: closed    },
+    { label: 'In Progress',   value: inProcess },
+    { label: 'Open / New',    value: openCount },
+  ];
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border)',
+      borderTop: '2px solid var(--purple)',
+      borderRadius: '8px',
+      overflow: 'hidden',
+    }}>
+      {/* Clickable header — always visible */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '13px 20px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{
+            fontSize: '10.5px', fontWeight: 500, textTransform: 'uppercase',
+            letterSpacing: '0.08em', color: 'var(--text-muted)',
+          }}>
+            All-Time Ticket Totals
+          </span>
+          {!expanded && (
+            loading
+              ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</span>
+              : total > 0 && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {total.toLocaleString()} total &middot; {closedPct}% resolved
+                  </span>
+                )
+          )}
+        </div>
+        <span style={{
+          color: 'var(--text-muted)', fontSize: 11,
+          transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+          transition: 'transform 150ms ease',
+          display: 'inline-block',
+        }}>▾</span>
+      </button>
+
+      {/* Expandable body */}
+      {expanded && (
+        <div style={{ padding: '0 20px 16px', borderTop: '1px solid var(--border)' }}>
+          {loading ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 10, height: 180,
+            }}>
+              <div style={{
+                width: 18, height: 18,
+                border: '2px solid var(--border)',
+                borderTopColor: 'var(--purple)',
+                borderRadius: '50%',
+                animation: 'spin 0.75s linear infinite',
+                flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading section data…</span>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '12px 0 14px' }}>
+                {subtitle}
+              </div>
+
+              <ResponsiveContainer width="100%" height={140}>
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 64, left: 0, bottom: 0 }}
+                  barSize={20}
+                  barCategoryGap="28%"
+                >
+                  <XAxis type="number" domain={[0, total || 1]} hide />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    width={104}
+                    tick={{ fill: axisFill, fontSize: 12, fontFamily: 'Inter, sans-serif' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+                    {chartData.map((entry, i) => (
+                      <Cell key={entry.label} fill={ALL_TIME_COLORS[i]} />
+                    ))}
+                    <LabelList
+                      dataKey="value"
+                      position="right"
+                      offset={8}
+                      style={{ fill: labelFill, fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif' }}
+                      formatter={v => v.toLocaleString()}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+
+              <div style={{ display: 'flex', gap: 24, marginTop: 10, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                {chartData.map((entry, i) => (
+                  <span key={entry.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <span style={{ width: 10, height: 10, background: ALL_TIME_COLORS[i], borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
+                    {entry.label}
+                    <strong style={{ color: 'var(--text-primary)', fontWeight: 500, fontVariantNumeric: 'tabular-nums', marginLeft: 2 }}>
+                      {entry.value.toLocaleString()}
+                    </strong>
+                  </span>
+                ))}
+                {total > 0 && (
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--positive)', fontWeight: 500 }}>
+                    {closedPct}% resolution rate
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LoadingScreen() {
   return (
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: '#0B1220',
+      background: 'var(--bg-page)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -23,7 +188,7 @@ function LoadingScreen() {
         position: 'absolute',
         top: 0, left: 0, right: 0,
         height: 2,
-        background: 'linear-gradient(90deg, transparent 0%, #7C3AED 35%, #06B6D4 65%, transparent 100%)',
+        background: 'linear-gradient(90deg, transparent 0%, var(--purple) 35%, var(--cyan) 65%, transparent 100%)',
       }} />
 
       {/* Brand lockup */}
@@ -33,7 +198,7 @@ function LoadingScreen() {
           alt="Luminate"
           style={{ width: 24, height: 24, flexShrink: 0, display: 'block', objectFit: 'contain' }}
         />
-        <span style={{ fontSize: 14, fontWeight: 500, color: '#F0F4F8', letterSpacing: '-0.01em' }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
           Luminate Support Center
         </span>
       </div>
@@ -41,17 +206,17 @@ function LoadingScreen() {
       {/* Spinner */}
       <div style={{
         width: 36, height: 36,
-        border: '2px solid #1B2C40',
-        borderTopColor: '#7C3AED',
+        border: '2px solid var(--border)',
+        borderTopColor: 'var(--purple)',
         borderRadius: '50%',
         animation: 'spin 0.75s linear infinite',
         marginBottom: 22,
       }} />
 
-      <div style={{ fontSize: 13, color: '#8899AA', letterSpacing: '0.01em' }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
         Loading real-time helpdesk data
       </div>
-      <div style={{ fontSize: 11, color: '#445566', marginTop: 8, letterSpacing: '0.02em' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, letterSpacing: '0.02em' }}>
         Connecting to JitBit API
       </div>
     </div>
@@ -60,19 +225,19 @@ function LoadingScreen() {
 
 function SLACard({ label, target, pct, met, total }) {
   const [hovered, setHovered] = useState(false);
-  const color = pct === null ? '#445566'
-    : pct >= 90 ? '#34D399'
-    : pct >= 70 ? '#FBBF24'
-    : '#F87171';
+  const color = pct === null ? 'var(--text-muted)'
+    : pct >= 90 ? 'var(--positive)'
+    : pct >= 70 ? 'var(--amber)'
+    : 'var(--negative)';
 
   return (
     <div
       style={{
-        background: '#111B2A',
-        borderLeft: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-        borderRight: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-        borderBottom: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-        borderTop: '2px solid #1B2C40',
+        background: 'var(--bg-card)',
+        borderLeft: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderRight: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderBottom: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderTop: '2px solid var(--border)',
         borderRadius: '8px',
         padding: '16px 18px 14px',
         display: 'flex',
@@ -84,13 +249,13 @@ function SLACard({ label, target, pct, met, total }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ fontSize: '10.5px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#445566', marginBottom: 10 }}>
-        {label}&nbsp;<span style={{ textTransform: 'none', letterSpacing: 0, color: '#8899AA' }}>({target})</span>
+      <div style={{ fontSize: '10.5px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
+        {label}&nbsp;<span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-secondary)' }}>({target})</span>
       </div>
       <div style={{ fontSize: 28, fontWeight: 500, color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
         {pct !== null ? `${pct}%` : '—'}
       </div>
-      <div style={{ fontSize: '11.5px', color: '#445566', marginTop: 'auto', paddingTop: 6 }}>
+      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 6 }}>
         {pct !== null ? `${met.toLocaleString()} / ${total.toLocaleString()} met` : 'No data'}
       </div>
     </div>
@@ -101,11 +266,26 @@ export default function Overview() {
   const [period,    setPeriod]   = useState('today');
   const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
+  const [showPct,   setShowPct]  = useState(false);
+
+  const theme = useTheme();
+  const isDark = theme !== 'light';
+  const axisFill  = isDark ? '#8899AA' : '#445566';
+  const labelFill = isDark ? '#F0F4F8' : '#0B1220';
 
   const { getStats, loading, error, lastSync } = useStatsCache(section);
 
   // Switching period is a synchronous cache lookup — no network call, no flicker
-  const data = getStats(period);
+  const data     = getStats(period);
+  const yearData = getStats('thisyear');
+
+
+  // All-Time chart: section filter only — period has no effect
+  // yearData is null until thisyear finishes loading (last in the fetch queue)
+  const chartLoading    = section !== '' && yearData === null;
+  const chartTotal      = section ? (yearData?.openedCount ?? 0) : (data?.totalTickets ?? 0);
+  const chartClosed     = section ? (yearData?.closedCount ?? 0) : (data?.closed      ?? 0);
+  const chartInProcess  = data?.inProcess ?? 0;
 
   async function handlePDF() {
     setExporting(true);
@@ -134,27 +314,29 @@ export default function Overview() {
 
   return (
     <div id="dashboard-root">
-      <Header />
-      <FilterBar
-        period={period}    setPeriod={setPeriod}
-        section={section}  setSection={setSection}
-        onExportCSV={exportCSV}
-        onExportPDF={handlePDF}
-        exporting={exporting}
+      <Header
         lastSync={lastSync}
         error={error}
         loading={loading}
+        onExportCSV={exportCSV}
+        onExportPDF={handlePDF}
+        exporting={exporting}
+      />
+      <FilterBar
+        period={period}    setPeriod={setPeriod}
+        section={section}  setSection={setSection}
+        showPct={showPct}  onTogglePct={() => setShowPct(p => !p)}
       />
 
       {error && (
         <div style={{
           margin: '10px 14px 0',
           padding: '10px 14px',
-          background: '#1A0A0A',
-          border: '1px solid #F87171',
+          background: 'rgba(248,113,113,0.08)',
+          border: '1px solid var(--negative)',
           borderRadius: '6px',
           fontSize: '13px',
-          color: '#F87171',
+          color: 'var(--negative)',
         }}>
           Unable to reach the data proxy — {error}. Retrying in 30 s.
         </div>
@@ -167,7 +349,6 @@ export default function Overview() {
         gap: '10px',
       }}>
 
-        {/* Row 1 — live activity (purple) */}
         <MetricCard
           label={`Tickets Opened — ${pl}`}
           value={v('openedCount')}
@@ -175,6 +356,7 @@ export default function Overview() {
           invertDelta={true}
           accent={C.accentPurple}
           description={`Tickets opened during ${pl}`}
+          showPct={showPct}
         />
         <MetricCard
           label={`Tickets Closed — ${pl}`}
@@ -183,6 +365,7 @@ export default function Overview() {
           invertDelta={false}
           accent={C.accentPurple}
           description={`Tickets closed during ${pl}`}
+          showPct={showPct}
         />
         <MetricCard
           label={`Tickets Per Hour — ${pl}`}
@@ -191,17 +374,8 @@ export default function Overview() {
           invertDelta={true}
           accent={C.accentPurple}
           description={`Avg tickets created per hour during ${pl}`}
+          showPct={showPct}
         />
-        <MetricCard
-          label={`Tickets Per Day — ${pl}`}
-          value={v('ticketsPerDay')}
-          delta={d('perDay')}
-          invertDelta={true}
-          accent={C.accentPurple}
-          description={`Avg tickets created per day during ${pl}`}
-        />
-
-        {/* Row 2 — performance metrics (cyan) */}
         <MetricCard
           label="Response Time"
           value={v('responseTime')}
@@ -215,30 +389,12 @@ export default function Overview() {
           description={`Avg time to resolution for tickets closed during ${pl}`}
         />
         <MetricCard
-          label="Total Tickets"
-          value={v('totalTickets')}
-          accent={C.accentCyan}
-          description="All-time total tickets in the system"
-        />
-        <MetricCard
-          label="Total New"
-          value={v('newTickets')}
-          accent={C.accentCyan}
-          description="Tickets currently in New status"
-        />
-
-        {/* Row 3 — status totals + SLA */}
-        <MetricCard
-          label="Total Closed"
-          value={v('closed')}
+          label={`Unique Submitters — ${pl}`}
+          value={v('uniqueSubmitters')}
+          delta={d('uniqueSubmitters')}
           accent={C.accentNeutral}
-          description="All-time total closed tickets"
-        />
-        <MetricCard
-          label="Total In-Progress"
-          value={v('inProcess')}
-          accent={C.accentNeutral}
-          description={`Total tickets currently "in progress"`}
+          description={`Distinct users who submitted tickets during ${pl}`}
+          showPct={showPct}
         />
         <SLACard
           label="Response SLA"
@@ -256,6 +412,18 @@ export default function Overview() {
         />
 
       </main>
+
+      <section style={{ padding: '0 14px 14px' }}>
+        <AllTimeTotalsChart
+          total={chartTotal}
+          closed={chartClosed}
+          inProcess={chartInProcess}
+          section={section}
+          loading={chartLoading}
+          axisFill={axisFill}
+          labelFill={labelFill}
+        />
+      </section>
     </div>
   );
 }

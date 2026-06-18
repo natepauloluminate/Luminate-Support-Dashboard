@@ -1,18 +1,64 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: #0B1220;
-  color: #F0F4F8;
-  -webkit-font-smoothing: antialiased;
+/* ── Dark theme (default) ─────────────────────────────────────────────── */
+:root {
+  --bg-page:      #0B1220;
+  --bg-header:    #070D17;
+  --bg-filter:    #0D1825;
+  --bg-card:      #111B2A;
+  --bg-surface:   #162030;
+  --border:       #1B2C40;
+  --border-hover: #2A3F58;
+
+  --purple:       #7C3AED;
+  --purple-soft:  rgba(124,58,237,0.12);
+  --cyan:         #06B6D4;
+  --cyan-soft:    rgba(6,182,212,0.12);
+  --amber:        #FBBF24;
+
+  --positive:     #34D399;
+  --negative:     #F87171;
+
+  --text-primary:   #F0F4F8;
+  --text-secondary: #8899AA;
+  --text-muted:     #445566;
 }
 
-select option { background: #111B2A; }
+/* ── Light theme ──────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-page:      #F0F4F8;
+  --bg-header:    #FFFFFF;
+  --bg-filter:    #F5F8FA;
+  --bg-card:      #FFFFFF;
+  --bg-surface:   #EEF2F7;
+  --border:       #D0DBE8;
+  --border-hover: #A8BDD0;
+
+  --purple-soft:  rgba(124,58,237,0.08);
+  --cyan-soft:    rgba(6,182,212,0.08);
+
+  --positive:     #059669;
+  --negative:     #DC2626;
+
+  --text-primary:   #0B1220;
+  --text-secondary: #445566;
+  --text-muted:     #8899AA;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+select option { background: var(--bg-card); }
 
 ::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: #0B1220; }
-::-webkit-scrollbar-thumb { background: #1B2C40; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2A3F58; }
+::-webkit-scrollbar-track { background: var(--bg-page); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
 @keyframes spin {
   to { transform: rotate(360deg); }

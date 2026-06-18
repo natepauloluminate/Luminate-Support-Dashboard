@@ -3,22 +3,22 @@ import { useState } from 'react';
 function DeltaBadge({ value, invert }) {
   const isGood = invert ? value < 0 : value > 0;
   return (
-    <span style={{ fontSize: 12, fontWeight: 500, color: isGood ? '#34D399' : '#F87171', letterSpacing: '0.01em' }}>
+    <span style={{ fontSize: 12, fontWeight: 500, color: isGood ? 'var(--positive)' : 'var(--negative)', letterSpacing: '0.01em' }}>
       {value > 0 ? '↑' : '↓'}{Math.abs(value).toFixed(2)}%
     </span>
   );
 }
 
-export default function MetricCard({ label, value, delta, invertDelta, description, accent, children }) {
+export default function MetricCard({ label, value, delta, invertDelta, description, accent, children, showPct = false }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div
       style={{
-        background: '#111B2A',
-        borderLeft: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-        borderRight: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-        borderBottom: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
+        background: 'var(--bg-card)',
+        borderLeft: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderRight: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderBottom: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
         borderTop: `2px solid ${accent}`,
         borderRadius: '8px',
         padding: '16px 18px 14px',
@@ -37,7 +37,7 @@ export default function MetricCard({ label, value, delta, invertDelta, descripti
         fontWeight: 500,
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
-        color: '#445566',
+        color: 'var(--text-muted)',
         marginBottom: 10,
       }}>
         {label}
@@ -49,13 +49,13 @@ export default function MetricCard({ label, value, delta, invertDelta, descripti
           <span style={{
             fontSize: 28,
             fontWeight: 500,
-            color: '#F0F4F8',
+            color: 'var(--text-primary)',
             lineHeight: 1,
             fontVariantNumeric: 'tabular-nums',
           }}>
             {typeof value === 'number' ? value.toLocaleString() : value}
           </span>
-          {delta !== undefined && <DeltaBadge value={delta} invert={invertDelta} />}
+          {delta !== undefined && showPct && <DeltaBadge value={delta} invert={invertDelta} />}
         </div>
       )}
 
@@ -65,7 +65,7 @@ export default function MetricCard({ label, value, delta, invertDelta, descripti
       {/* Description */}
       <div style={{
         fontSize: '11.5px',
-        color: '#445566',
+        color: 'var(--text-muted)',
         lineHeight: 1.5,
         marginTop: 'auto',
         paddingTop: 6,

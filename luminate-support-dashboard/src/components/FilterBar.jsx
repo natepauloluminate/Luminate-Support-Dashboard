@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const PERIOD_OPTIONS = [
   { value: 'today',       label: 'Today' },
@@ -22,17 +23,46 @@ const SECTION_OPTIONS = [
 export default function FilterBar({
   period, setPeriod,
   section, setSection,
-  onExportCSV, onExportPDF, exporting,
-  lastSync, error, loading,
+  showPct, onTogglePct,
 }) {
-  const [csvHover, setCsvHover] = useState(false);
-  const [pdfHover, setPdfHover] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [overviewHover,  setOverviewHover]  = useState(false);
+  const [analyticsHover, setAnalyticsHover] = useState(false);
+
+  const isOverview  = location.pathname === '/';
+  const isAnalytics = location.pathname === '/analytics';
+
+  const activeTab = {
+    background: 'var(--purple)',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '20px',
+    padding: '6px 18px',
+    fontSize: '13px',
+    fontWeight: 500,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+  };
+
+  const inactiveTab = (hovered) => ({
+    background: 'transparent',
+    color: hovered ? 'var(--text-primary)' : 'var(--text-secondary)',
+    border: 'none',
+    borderRadius: '20px',
+    padding: '6px 18px',
+    fontSize: '13px',
+    fontWeight: 400,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    transition: 'color 150ms ease',
+  });
 
   const selectStyle = {
-    background: '#111B2A',
-    border: '1px solid #1B2C40',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
     borderRadius: '6px',
-    color: '#B0BEC5',
+    color: 'var(--text-secondary)',
     padding: '6px 30px 6px 11px',
     fontSize: '13px',
     fontFamily: 'inherit',
@@ -43,47 +73,27 @@ export default function FilterBar({
     minWidth: '130px',
   };
 
-  const exportBtn = (hovered) => ({
-    background: 'transparent',
-    border: `1px solid ${hovered ? '#2A3F58' : '#1B2C40'}`,
-    borderRadius: '5px',
-    color: hovered ? '#F0F4F8' : '#8899AA',
-    padding: '5px 12px',
-    fontSize: '12px',
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    transition: 'border-color 150ms ease, color 150ms ease',
-  });
-
   const caretStyle = {
     position: 'absolute',
     right: 10,
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#445566',
+    color: 'var(--text-muted)',
     pointerEvents: 'none',
     fontSize: 10,
   };
 
-  const dotColor    = error ? '#F87171' : lastSync ? '#34D399' : '#445566';
-  const statusLabel = error
-    ? 'Error — retrying'
-    : loading
-    ? 'Loading…'
-    : lastSync
-    ? `Synced ${lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    : 'Connecting…';
-
   return (
     <div style={{
       height: '50px',
-      background: '#0D1825',
-      borderBottom: '1px solid #1B2C40',
+      background: 'var(--bg-filter)',
+      borderBottom: '1px solid var(--border)',
       padding: '0 20px',
       display: 'flex',
       alignItems: 'center',
       gap: 10,
     }}>
+
       {/* Period select */}
       <div style={{ position: 'relative' }}>
         <select style={selectStyle} value={period} onChange={e => setPeriod(e.target.value)}>
@@ -100,44 +110,46 @@ export default function FilterBar({
         <span style={caretStyle}>▾</span>
       </div>
 
-      {/* Right group */}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* Live sync indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            width: 7, height: 7, borderRadius: '50%',
-            background: dotColor, display: 'inline-block',
-          }} />
-          <span style={{
-            fontSize: 11,
-            color: lastSync && !error ? '#8899AA' : '#445566',
-            letterSpacing: '0.02em',
-          }}>
-            {statusLabel}
-          </span>
-        </div>
+      {/* Stage 4: percentage toggle */}
+      <button
+        id="pct-toggle-anchor"
+        onClick={onTogglePct}
+        style={{
+          background: showPct ? 'var(--purple)' : 'transparent',
+          border: `1px solid ${showPct ? 'var(--purple)' : 'var(--border)'}`,
+          borderRadius: '5px',
+          color: showPct ? '#ffffff' : 'var(--text-muted)',
+          padding: '5px 10px',
+          fontSize: '12px',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          transition: 'background 150ms ease, border-color 150ms ease, color 150ms ease',
+          letterSpacing: '0.02em',
+        }}
+      >
+        %
+      </button>
 
-        {/* Export buttons */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            style={exportBtn(csvHover)}
-            onClick={onExportCSV}
-            onMouseEnter={() => setCsvHover(true)}
-            onMouseLeave={() => setCsvHover(false)}
-          >
-            ↓ CSV
-          </button>
-          <button
-            style={exportBtn(pdfHover)}
-            onClick={onExportPDF}
-            onMouseEnter={() => setPdfHover(true)}
-            onMouseLeave={() => setPdfHover(false)}
-            disabled={exporting}
-          >
-            {exporting ? 'Generating…' : '↓ PDF'}
-          </button>
-        </div>
+      {/* Page nav tabs — far right */}
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        <button
+          style={isOverview ? activeTab : inactiveTab(overviewHover)}
+          onClick={() => navigate('/')}
+          onMouseEnter={() => setOverviewHover(true)}
+          onMouseLeave={() => setOverviewHover(false)}
+        >
+          Overview
+        </button>
+        <button
+          style={isAnalytics ? activeTab : inactiveTab(analyticsHover)}
+          onClick={() => navigate('/analytics')}
+          onMouseEnter={() => setAnalyticsHover(true)}
+          onMouseLeave={() => setAnalyticsHover(false)}
+        >
+          Analytics
+        </button>
       </div>
+
     </div>
   );
 }

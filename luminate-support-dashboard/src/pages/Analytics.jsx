@@ -13,6 +13,7 @@ import FilterBar from '../components/FilterBar.jsx';
 import ChartCard from '../components/ChartCard.jsx';
 import { useStatsCache, fetchStat } from '../hooks/useStatsCache.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
+import { useTheme } from '../hooks/useTheme.js';
 
 const DEPT_COLORS = [
   '#7C3AED', // violet  — primary brand
@@ -32,26 +33,10 @@ const SECTION_META = [
   { id: '167044', name: 'Other' },
 ];
 
-const tooltipStyle = {
-  contentStyle: {
-    background: '#0B1220',
-    border: '1px solid #7C3AED',
-    borderRadius: '6px',
-    fontSize: 12,
-    color: '#F0F4F8',
-    fontFamily: 'Inter, sans-serif',
-  },
-  labelStyle:  { color: '#8899AA', marginBottom: 4 },
-  itemStyle:   { color: '#F0F4F8' },
-  cursor:      { fill: 'rgba(124,58,237,0.06)' },
-};
-
-const axisTick = { fill: '#445566', fontSize: 11, fontFamily: 'Inter, sans-serif' };
-
-function TrendArea({ trendData }) {
+function TrendArea({ trendData, ch }) {
   return (
     <>
-      <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: '#8899AA' }}>
+      <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 10, height: 10, background: '#7C3AED', borderRadius: 2, display: 'inline-block' }} />
           Opened
@@ -73,10 +58,10 @@ function TrendArea({ trendData }) {
               <stop offset="95%" stopColor="#06B6D4" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1B2C40" vertical={false} />
-          <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
-          <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipStyle} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ch.gridStroke} vertical={false} />
+          <XAxis dataKey="date" tick={ch.axisTick} axisLine={false} tickLine={false} />
+          <YAxis tick={ch.axisTick} axisLine={false} tickLine={false} />
+          <Tooltip {...ch.tooltipStyle} />
           <Area type="monotone" dataKey="opened" name="Opened"
             stroke="#7C3AED" strokeWidth={2} fill="url(#gOpened)" dot={false}
             activeDot={{ r: 4, fill: '#7C3AED' }}
@@ -91,7 +76,7 @@ function TrendArea({ trendData }) {
   );
 }
 
-function StatusDonut({ statusData }) {
+function StatusDonut({ statusData, ch }) {
   const total = statusData.reduce((s, d) => s + d.value, 0).toLocaleString();
   return (
     <>
@@ -107,7 +92,7 @@ function StatusDonut({ statusData }) {
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip {...tooltipStyle} formatter={v => v.toLocaleString()} />
+            <Tooltip {...ch.tooltipStyle} formatter={v => v.toLocaleString()} />
           </PieChart>
         </ResponsiveContainer>
         <div style={{
@@ -115,18 +100,18 @@ function StatusDonut({ statusData }) {
           transform: 'translate(-50%,-50%)',
           textAlign: 'center', pointerEvents: 'none',
         }}>
-          <div style={{ fontSize: 20, fontWeight: 500, color: '#F0F4F8', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
             {total}
           </div>
-          <div style={{ fontSize: 11, color: '#445566', marginTop: 2 }}>Total</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Total</div>
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
         {statusData.map(s => (
-          <span key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#8899AA' }}>
+          <span key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary)' }}>
             <span style={{ width: 10, height: 10, background: s.color, borderRadius: 2, display: 'inline-block' }} />
             {s.name}
-            <strong style={{ color: '#F0F4F8', marginLeft: 3, fontWeight: 500 }}>
+            <strong style={{ color: 'var(--text-primary)', marginLeft: 3, fontWeight: 500 }}>
               {s.value.toLocaleString()}
             </strong>
           </span>
@@ -136,10 +121,10 @@ function StatusDonut({ statusData }) {
   );
 }
 
-function TimeBar({ timeData }) {
+function TimeBar({ timeData, ch }) {
   return (
     <>
-      <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: '#8899AA' }}>
+      <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 10, height: 10, background: '#7C3AED', borderRadius: 2, display: 'inline-block' }} />
           Resolution
@@ -151,11 +136,11 @@ function TimeBar({ timeData }) {
       </div>
       <ResponsiveContainer width="100%" height={170}>
         <BarChart data={timeData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }} barGap={2} barCategoryGap="35%">
-          <CartesianGrid strokeDasharray="3 3" stroke="#1B2C40" vertical={false} />
-          <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} />
-          <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ch.gridStroke} vertical={false} />
+          <XAxis dataKey="day" tick={ch.axisTick} axisLine={false} tickLine={false} />
+          <YAxis tick={ch.axisTick} axisLine={false} tickLine={false} />
           <Tooltip
-            {...tooltipStyle}
+            {...ch.tooltipStyle}
             formatter={(v, n) => [`${v}h`, n]}
             labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? _}
           />
@@ -167,19 +152,19 @@ function TimeBar({ timeData }) {
   );
 }
 
-function CategoryBar({ categoryData }) {
+function CategoryBar({ categoryData, ch }) {
   const sorted = [...categoryData].sort((a, b) => b.count - a.count);
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={sorted} layout="vertical" margin={{ top: 5, right: 10, left: 8, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1B2C40" horizontal={false} />
-        <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={ch.gridStroke} horizontal={false} />
+        <XAxis type="number" tick={ch.axisTick} axisLine={false} tickLine={false} />
         <YAxis
           type="category" dataKey="name" width={76}
-          tick={{ fill: '#8899AA', fontSize: 11, fontFamily: 'Inter, sans-serif' }}
+          tick={ch.axisTick}
           axisLine={false} tickLine={false}
         />
-        <Tooltip {...tooltipStyle} />
+        <Tooltip {...ch.tooltipStyle} />
         <Bar dataKey="count" name="Tickets" radius={[0,3,3,0]} maxBarSize={12}>
           {sorted.map((entry, i) => (
             <Cell key={entry.name} fill={DEPT_COLORS[i % DEPT_COLORS.length]} />
@@ -195,6 +180,17 @@ export default function Analytics() {
   const [section,   setSection]  = useState('');
   const [exporting, setExporting] = useState(false);
   const [categoryData, setCategoryData] = useState([]);
+
+  const theme = useTheme();
+  const isDark = theme !== 'light';
+  const gridStroke = isDark ? '#1B2C40' : '#D0DBE8';
+  const axisTick = { fill: isDark ? '#8899AA' : '#445566', fontSize: 11, fontFamily: 'Inter, sans-serif' };
+  const tooltipStyle = {
+    contentStyle: { background: 'var(--bg-card)', border: '1px solid var(--purple)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)' },
+    labelStyle:   { color: 'var(--text-secondary)' },
+    cursor:       { stroke: 'var(--border)' },
+  };
+  const ch = { gridStroke, axisTick, tooltipStyle };
 
   const { getStats, error, lastSync, loading } = useStatsCache(section);
   const data = getStats(period);
@@ -230,33 +226,34 @@ export default function Analytics() {
 
   return (
     <div id="analytics-root">
-      <Header />
-      <FilterBar
-        period={period}    setPeriod={setPeriod}
-        section={section}  setSection={setSection}
-        onExportCSV={exportCSV}
-        onExportPDF={handlePDF}
-        exporting={exporting}
+      <Header
         lastSync={lastSync}
         error={error}
         loading={loading}
+        onExportCSV={exportCSV}
+        onExportPDF={handlePDF}
+        exporting={exporting}
+      />
+      <FilterBar
+        period={period}    setPeriod={setPeriod}
+        section={section}  setSection={setSection}
       />
 
       <main style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed — selected period">
-          <TrendArea trendData={trendData} />
+          <TrendArea trendData={trendData} ch={ch} />
         </ChartCard>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
           <ChartCard title="Queue Status" subtitle="Opened vs. closed — selected period &amp; section">
-            <StatusDonut statusData={statusData} />
+            <StatusDonut statusData={statusData} ch={ch} />
           </ChartCard>
           <ChartCard title="Time Metrics" subtitle="Avg response & resolution by day (hrs)">
-            <TimeBar timeData={timeData} />
+            <TimeBar timeData={timeData} ch={ch} />
           </ChartCard>
           <ChartCard title="By Category" subtitle="Tickets opened per department — selected period">
-            <CategoryBar categoryData={categoryData} />
+            <CategoryBar categoryData={categoryData} ch={ch} />
           </ChartCard>
         </div>
 

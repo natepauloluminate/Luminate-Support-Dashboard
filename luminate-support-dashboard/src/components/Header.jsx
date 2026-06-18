@@ -1,47 +1,57 @@
-import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 
-export default function Header() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [overviewHover, setOverviewHover] = useState(false);
-  const [analyticsHover, setAnalyticsHover] = useState(false);
+export default function Header({
+  lastSync, error, loading,
+  onExportCSV, onExportPDF, exporting,
+}) {
+  const [csvHover,   setCsvHover]   = useState(false);
+  const [pdfHover,   setPdfHover]   = useState(false);
+  const [themeHover, setThemeHover] = useState(false);
+  const [theme, setTheme] = useState(
+    () => document.documentElement.getAttribute('data-theme') ?? 'dark'
+  );
 
-  const isOverview  = location.pathname === '/';
-  const isAnalytics = location.pathname === '/analytics';
+  // Ensure data-theme attribute is always set; default to dark on fresh page load
+  useEffect(() => {
+    if (!document.documentElement.getAttribute('data-theme')) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
 
-  const activeTab = {
-    background: '#7C3AED',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '20px',
-    padding: '6px 18px',
-    fontSize: '13px',
-    fontWeight: 500,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-  };
+  function handleThemeToggle() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    setTheme(next);
+  }
 
-  const inactiveTab = (hovered) => ({
+  const exportBtn = (hovered) => ({
     background: 'transparent',
-    color: hovered ? '#F0F4F8' : '#8899AA',
-    border: 'none',
-    borderRadius: '20px',
-    padding: '6px 18px',
-    fontSize: '13px',
-    fontWeight: 400,
+    border: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+    borderRadius: '5px',
+    color: hovered ? 'var(--text-primary)' : 'var(--text-secondary)',
+    padding: '5px 12px',
+    fontSize: '12px',
     fontFamily: 'inherit',
     cursor: 'pointer',
-    transition: 'color 150ms ease',
+    transition: 'border-color 150ms ease, color 150ms ease',
   });
+
+  const dotColor    = error ? 'var(--negative)' : lastSync ? 'var(--positive)' : 'var(--text-muted)';
+  const statusLabel = error
+    ? 'Error — retrying'
+    : loading
+    ? 'Loading…'
+    : lastSync
+    ? `Synced ${lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : 'Connecting…';
 
   return (
     <div>
       {/* Main bar */}
       <div style={{
         height: '56px',
-        background: '#070D17',
-        borderBottom: '1px solid #1B2C40',
+        background: 'var(--bg-header)',
+        borderBottom: '1px solid var(--border)',
         padding: '0 20px',
         display: 'flex',
         alignItems: 'center',
@@ -51,43 +61,86 @@ export default function Header() {
           <img
             src="/luminate-logo.webp"
             alt="Luminate"
-            style={{ width: 22, height: 22, flexShrink: 0, display: 'block', objectFit: 'contain' }}
+            style={{ width: 30, height: 30, flexShrink: 0, display: 'block', objectFit: 'contain' }}
           />
           <span style={{
-            fontSize: '14px',
+            fontSize: '18px',
             fontWeight: 500,
-            color: '#F0F4F8',
+            color: 'var(--text-primary)',
             letterSpacing: '-0.01em',
           }}>
             Luminate Support Center
           </span>
         </div>
 
-        {/* Tab nav */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        {/* Right group: sync indicator + export buttons + theme toggle */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+
+          {/* Live sync indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: dotColor, display: 'inline-block',
+            }} />
+            <span style={{
+              fontSize: 11,
+              color: lastSync && !error ? 'var(--text-secondary)' : 'var(--text-muted)',
+              letterSpacing: '0.02em',
+            }}>
+              {statusLabel}
+            </span>
+          </div>
+
+          {/* Export buttons */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={exportBtn(csvHover)}
+              onClick={onExportCSV}
+              onMouseEnter={() => setCsvHover(true)}
+              onMouseLeave={() => setCsvHover(false)}
+            >
+              ↓ CSV
+            </button>
+            <button
+              style={exportBtn(pdfHover)}
+              onClick={onExportPDF}
+              onMouseEnter={() => setPdfHover(true)}
+              onMouseLeave={() => setPdfHover(false)}
+              disabled={exporting}
+            >
+              {exporting ? 'Generating…' : '↓ PDF'}
+            </button>
+          </div>
+
+          {/* Theme toggle */}
           <button
-            style={isOverview ? activeTab : inactiveTab(overviewHover)}
-            onClick={() => navigate('/')}
-            onMouseEnter={() => setOverviewHover(true)}
-            onMouseLeave={() => setOverviewHover(false)}
+            onClick={handleThemeToggle}
+            onMouseEnter={() => setThemeHover(true)}
+            onMouseLeave={() => setThemeHover(false)}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${themeHover ? 'var(--border-hover)' : 'var(--border)'}`,
+              borderRadius: '5px',
+              color: themeHover ? 'var(--text-primary)' : 'var(--text-secondary)',
+              padding: '5px 8px',
+              fontSize: '14px',
+              lineHeight: 1,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              transition: 'border-color 150ms ease, color 150ms ease',
+            }}
           >
-            Overview
+            {theme === 'dark' ? '☀' : '☾'}
           </button>
-          <button
-            style={isAnalytics ? activeTab : inactiveTab(analyticsHover)}
-            onClick={() => navigate('/analytics')}
-            onMouseEnter={() => setAnalyticsHover(true)}
-            onMouseLeave={() => setAnalyticsHover(false)}
-          >
-            Analytics
-          </button>
+
         </div>
       </div>
 
       {/* Signature gradient rule */}
       <div style={{
         height: '2px',
-        background: 'linear-gradient(90deg, transparent 0%, #7C3AED 35%, #06B6D4 65%, transparent 100%)',
+        background: 'linear-gradient(90deg, transparent 0%, var(--purple) 35%, var(--cyan) 65%, transparent 100%)',
       }} />
     </div>
   );

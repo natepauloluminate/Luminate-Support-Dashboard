@@ -236,27 +236,34 @@ module.exports = async function handler(req, res) {
     // Skip prior-period fetch for long periods — too many paginated calls, delta not meaningful at year scale
     const skipDelta = period === 'thisquarter' || period === 'thisyear';
 
-    const [stats, techUsers, currentMetrics, priorMetrics] = await Promise.all([
+    const [stats, techUsers, currentMetrics, priorMetrics, sectionInProcess] = await Promise.all([
       fetchStats(),
       fetchTechs(),
       fetchPeriodMetrics(currentDates, sectionId),
       skipDelta
         ? Promise.resolve({ openedTickets: [], closedTickets: [] })
         : fetchPeriodMetrics(priorDates, sectionId),
+      // When a section is active, count in-progress tickets for that section directly.
+      // Without a section, the Stats endpoint already gives the global count.
+      sectionId
+        ? fetchAllTickets({ statusId: '2', sectionId }).then(t => t.length)
+        : Promise.resolve(null),
     ]);
 
-    const openedCount = currentMetrics.openedTickets.length;
-    const closedCount = currentMetrics.closedTickets.length;
-    const ticketsPerHour = currentHour > 0 ? Math.round((openedCount / currentHour) * 100) / 100 : 0;
-    const ticketsPerDay = openedCount;
+    const openedCount        = currentMetrics.openedTickets.length;
+    const closedCount        = currentMetrics.closedTickets.length;
+    const uniqueSubmitters   = new Set(currentMetrics.openedTickets.map(t => t.UserID).filter(id => id != null)).size;
+    const ticketsPerHour     = currentHour > 0 ? Math.round((openedCount / currentHour) * 100) / 100 : 0;
+    const ticketsPerDay      = openedCount;
 
-    const responseTime = calcResponseTime(currentMetrics.openedTickets);
+    const responseTime   = calcResponseTime(currentMetrics.openedTickets);
     const resolutionTime = calcResolutionTime(currentMetrics.closedTickets);
 
-    const priorOpened = priorMetrics.openedTickets.length;
-    const priorClosed = priorMetrics.closedTickets.length;
-    const priorPerHour = currentHour > 0 ? Math.round((priorOpened / currentHour) * 100) / 100 : 0;
-    const priorPerDay = priorOpened;
+    const priorOpened          = priorMetrics.openedTickets.length;
+    const priorClosed          = priorMetrics.closedTickets.length;
+    const priorUniqueSubmitters = new Set(priorMetrics.openedTickets.map(t => t.UserID).filter(id => id != null)).size;
+    const priorPerHour         = currentHour > 0 ? Math.round((priorOpened / currentHour) * 100) / 100 : 0;
+    const priorPerDay          = priorOpened;
 
     let techsOnline = [];
     let techsOOO = [];
@@ -280,9 +287,11 @@ module.exports = async function handler(req, res) {
       totalTickets: stats.TotalTickets,
       newTickets: stats.NewTickets,
       closed: stats.Closed,
-      inProcess: stats.InProcess,
+      inProcess:  sectionInProcess !== null ? sectionInProcess : stats.InProcess,
       openedCount,
       closedCount,
+      uniqueSubmitters,
+      _debugTicketKeys: currentMetrics.openedTickets.length > 0 ? Object.keys(currentMetrics.openedTickets[0]) : [],
       ticketsPerHour,
       ticketsPerDay,
       responseTime,
@@ -295,10 +304,11 @@ module.exports = async function handler(req, res) {
       trendData: buildTrendData(currentMetrics.openedTickets, currentMetrics.closedTickets, currentDates),
       timeData:  buildTimeData(currentMetrics.openedTickets, currentDates),
       deltas: {
-        opened:  safeDelta(openedCount, priorOpened),
-        closed:  safeDelta(closedCount, priorClosed),
-        perHour: safeDelta(ticketsPerHour, priorPerHour),
-        perDay:  safeDelta(ticketsPerDay, priorPerDay),
+        opened:           safeDelta(openedCount,       priorOpened),
+        closed:           safeDelta(closedCount,       priorClosed),
+        uniqueSubmitters: safeDelta(uniqueSubmitters,  priorUniqueSubmitters),
+        perHour:          safeDelta(ticketsPerHour,    priorPerHour),
+        perDay:           safeDelta(ticketsPerDay,     priorPerDay),
       },
     });
   } catch (err) {
