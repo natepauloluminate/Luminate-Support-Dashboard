@@ -9,7 +9,7 @@ function DeltaBadge({ value, invert }) {
   );
 }
 
-export default function MetricCard({ label, value, delta, invertDelta, description, accent, children, showPct = false }) {
+export default function MetricCard({ label, value, delta, invertDelta, description, accent, children, showPct = false, loading = false }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -43,26 +43,41 @@ export default function MetricCard({ label, value, delta, invertDelta, descripti
         {label}
       </div>
 
-      {/* Value + delta row */}
-      {value !== null && value !== undefined && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{
-            fontSize: 28,
-            fontWeight: 500,
-            color: 'var(--text-primary)',
-            lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {typeof value === 'number' ? value.toLocaleString() : value}
-          </span>
-          {delta !== undefined && showPct && <DeltaBadge value={delta} invert={invertDelta} />}
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', height: 34, marginBottom: 8 }}>
+          <div style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            border: '2px solid var(--border)',
+            borderTopColor: 'var(--purple)',
+            animation: 'spin 0.8s linear infinite',
+          }} />
         </div>
+      ) : (
+        <>
+          {/* Value + delta row */}
+          {value !== null && value !== undefined && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{
+                fontSize: 28,
+                fontWeight: 500,
+                color: 'var(--text-primary)',
+                lineHeight: 1,
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {typeof value === 'number' ? value.toLocaleString() : value}
+              </span>
+              {delta !== undefined && showPct && <DeltaBadge value={delta} invert={invertDelta} />}
+            </div>
+          )}
+
+          {/* Children (badges, lists, etc.) */}
+          {children}
+        </>
       )}
 
-      {/* Children (badges, lists, etc.) */}
-      {children}
-
-      {/* Description */}
+      {/* Description — always visible so the card height stays stable */}
       <div style={{
         fontSize: '11.5px',
         color: 'var(--text-muted)',

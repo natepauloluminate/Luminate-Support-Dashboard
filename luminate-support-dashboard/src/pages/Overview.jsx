@@ -218,7 +218,7 @@ function LoadingScreen() {
   );
 }
 
-function SLACard({ label, target, pct, met, total }) {
+function SLACard({ label, target, pct, met, total, loading = false }) {
   const [hovered, setHovered] = useState(false);
   const color = pct === null ? 'var(--text-muted)'
     : pct >= 90 ? 'var(--positive)'
@@ -247,12 +247,27 @@ function SLACard({ label, target, pct, met, total }) {
       <div style={{ fontSize: '10.5px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
         {label}&nbsp;<span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-secondary)' }}>({target})</span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 500, color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
-        {pct !== null ? `${pct}%` : '—'}
-      </div>
-      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 6 }}>
-        {pct !== null ? `${met.toLocaleString()} / ${total.toLocaleString()} met` : 'No data'}
-      </div>
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', height: 34, marginBottom: 8 }}>
+          <div style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            border: '2px solid var(--border)',
+            borderTopColor: 'var(--purple)',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 28, fontWeight: 500, color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
+            {pct !== null ? `${pct}%` : '—'}
+          </div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 6 }}>
+            {pct !== null ? `${met.toLocaleString()} / ${total.toLocaleString()} met` : 'No data'}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -287,6 +302,7 @@ export default function Overview() {
   // Show full-screen loader on first visit only (no cached today data yet)
   if (loading && !data) return <LoadingScreen />;
 
+  const cardLoading = data === null;
   const v = (key) => data ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
 
@@ -348,6 +364,7 @@ export default function Overview() {
           accent={C.accentPurple}
           description={`Tickets opened during ${pl}`}
           showPct={showPct}
+          loading={cardLoading}
         />
         <MetricCard
           label={`Tickets Closed — ${pl}`}
@@ -357,6 +374,7 @@ export default function Overview() {
           accent={C.accentPurple}
           description={`Tickets closed during ${pl}`}
           showPct={showPct}
+          loading={cardLoading}
         />
         <MetricCard
           label={`Tickets Per Hour — ${pl}`}
@@ -366,6 +384,7 @@ export default function Overview() {
           accent={C.accentPurple}
           description={`Avg tickets created per hour during ${pl}`}
           showPct={showPct}
+          loading={cardLoading}
         />
         <MetricCard
           label={`Unique Submitters — ${pl}`}
@@ -374,18 +393,21 @@ export default function Overview() {
           accent={C.accentNeutral}
           description={`Distinct users who submitted tickets during ${pl}`}
           showPct={showPct}
+          loading={cardLoading}
         />
         <MetricCard
           label="Response Time"
           value={v('responseTime')}
           accent={C.accentCyan}
           description={`Avg time to first response for tickets during ${pl}`}
+          loading={cardLoading}
         />
         <MetricCard
           label="Resolution Time"
           value={v('resolutionTime')}
           accent={C.accentCyan}
           description={`Avg time to resolution for tickets closed during ${pl}`}
+          loading={cardLoading}
         />
         <SLACard
           label="Response SLA"
@@ -393,6 +415,7 @@ export default function Overview() {
           pct={responseSLA?.pct ?? null}
           met={responseSLA?.met ?? 0}
           total={responseSLA?.total ?? 0}
+          loading={cardLoading}
         />
         <SLACard
           label="Resolution SLA"
@@ -400,6 +423,7 @@ export default function Overview() {
           pct={resolutionSLA?.pct ?? null}
           met={resolutionSLA?.met ?? 0}
           total={resolutionSLA?.total ?? 0}
+          loading={cardLoading}
         />
 
       </main>
