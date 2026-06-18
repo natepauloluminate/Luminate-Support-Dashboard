@@ -1,16 +1,8 @@
 import { useState } from 'react';
-import {
-  ResponsiveContainer,
-  BarChart, Bar,
-  XAxis, YAxis,
-  LabelList,
-  Cell,
-} from 'recharts';
 import Header from '../components/Header.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import MetricCard from '../components/MetricCard.jsx';
 import { useStatsCache } from '../hooks/useStatsCache.js';
-import { useTheme } from '../hooks/useTheme.js';
 import { C } from '../tokens.js';
 import { exportCSV, exportPDF } from '../utils/export.js';
 
@@ -25,7 +17,48 @@ const SECTION_LABELS = {
   '167044': 'Other',
 };
 
-function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFill, labelFill }) {
+function TotalCard({ label, value, color, total, suffix }) {
+  const [hovered, setHovered] = useState(false);
+  const pct = total > 0 && value !== total ? Math.round((value / total) * 1000) / 10 : null;
+
+  return (
+    <div
+      style={{
+        background: 'var(--bg-card)',
+        borderLeft: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderRight: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderBottom: `1px solid ${hovered ? 'var(--border-hover)' : 'var(--border)'}`,
+        borderTop: `2px solid ${color}`,
+        borderRadius: '8px',
+        padding: '14px 16px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'border-color 150ms ease',
+        cursor: 'default',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={{
+        fontSize: '10px', fontWeight: 500, textTransform: 'uppercase',
+        letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: 26, fontWeight: 500, color: 'var(--text-primary)',
+        lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 8,
+      }}>
+        {value.toLocaleString()}
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 4 }}>
+        {pct !== null ? `${pct}% of total` : suffix ?? 'all sections, all time'}
+      </div>
+    </div>
+  );
+}
+
+function AllTimeTotalsChart({ total, closed, inProcess, section, loading }) {
   const [expanded, setExpanded] = useState(false);
 
   const openCount = Math.max(0, total - closed - inProcess);
@@ -35,11 +68,11 @@ function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFi
     ? `${SECTION_LABELS[section] ?? 'Selected section'} — this year's counts`
     : 'System-wide ticket counts — all sections, all time';
 
-  const chartData = [
-    { label: 'Total Tickets', value: total     },
-    { label: 'Closed',        value: closed    },
-    { label: 'In Progress',   value: inProcess },
-    { label: 'Open / New',    value: openCount },
+  const cards = [
+    { label: 'Total Tickets', value: total,     color: ALL_TIME_COLORS[0], suffix: subtitle },
+    { label: 'Closed',        value: closed,    color: ALL_TIME_COLORS[1] },
+    { label: 'In Progress',   value: inProcess, color: ALL_TIME_COLORS[2] },
+    { label: 'Open / New',    value: openCount, color: ALL_TIME_COLORS[3] },
   ];
 
   return (
@@ -73,15 +106,14 @@ function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFi
           }}>
             All-Time Ticket Totals
           </span>
-          {!expanded && (
-            loading
-              ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</span>
-              : total > 0 && (
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {total.toLocaleString()} total &middot; {closedPct}% resolved
-                  </span>
-                )
-          )}
+          {loading
+            ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</span>
+            : total > 0 && (
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {total.toLocaleString()} total &middot; {closedPct}% resolved
+                </span>
+              )
+          }
         </div>
         <span style={{
           color: 'var(--text-muted)', fontSize: 11,
@@ -93,11 +125,11 @@ function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFi
 
       {/* Expandable body */}
       {expanded && (
-        <div style={{ padding: '0 20px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border)' }}>
           {loading ? (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 10, height: 180,
+              gap: 10, height: 120,
             }}>
               <div style={{
                 width: 18, height: 18,
@@ -110,60 +142,23 @@ function AllTimeTotalsChart({ total, closed, inProcess, section, loading, axisFi
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading section data…</span>
             </div>
           ) : (
-            <>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '12px 0 14px' }}>
-                {subtitle}
-              </div>
-
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 0, right: 64, left: 0, bottom: 0 }}
-                  barSize={20}
-                  barCategoryGap="28%"
-                >
-                  <XAxis type="number" domain={[0, total || 1]} hide />
-                  <YAxis
-                    type="category"
-                    dataKey="label"
-                    width={104}
-                    tick={{ fill: axisFill, fontSize: 12, fontFamily: 'Inter, sans-serif' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Bar dataKey="value" radius={[0, 3, 3, 0]}>
-                    {chartData.map((entry, i) => (
-                      <Cell key={entry.label} fill={ALL_TIME_COLORS[i]} />
-                    ))}
-                    <LabelList
-                      dataKey="value"
-                      position="right"
-                      offset={8}
-                      style={{ fill: labelFill, fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif' }}
-                      formatter={v => v.toLocaleString()}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-
-              <div style={{ display: 'flex', gap: 24, marginTop: 10, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                {chartData.map((entry, i) => (
-                  <span key={entry.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-                    <span style={{ width: 10, height: 10, background: ALL_TIME_COLORS[i], borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
-                    {entry.label}
-                    <strong style={{ color: 'var(--text-primary)', fontWeight: 500, fontVariantNumeric: 'tabular-nums', marginLeft: 2 }}>
-                      {entry.value.toLocaleString()}
-                    </strong>
-                  </span>
-                ))}
-                {total > 0 && (
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--positive)', fontWeight: 500 }}>
-                    {closedPct}% resolution rate
-                  </span>
-                )}
-              </div>
-            </>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: 10,
+              paddingTop: 14,
+            }}>
+              {cards.map(card => (
+                <TotalCard
+                  key={card.label}
+                  label={card.label}
+                  value={card.value}
+                  color={card.color}
+                  total={total}
+                  suffix={card.suffix}
+                />
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -268,10 +263,6 @@ export default function Overview() {
   const [exporting, setExporting] = useState(false);
   const [showPct,   setShowPct]  = useState(false);
 
-  const theme = useTheme();
-  const isDark = theme !== 'light';
-  const axisFill  = isDark ? '#8899AA' : '#445566';
-  const labelFill = isDark ? '#F0F4F8' : '#0B1220';
 
   const { getStats, loading, error, lastSync } = useStatsCache(section);
 
@@ -377,6 +368,14 @@ export default function Overview() {
           showPct={showPct}
         />
         <MetricCard
+          label={`Unique Submitters — ${pl}`}
+          value={v('uniqueSubmitters')}
+          delta={d('uniqueSubmitters')}
+          accent={C.accentNeutral}
+          description={`Distinct users who submitted tickets during ${pl}`}
+          showPct={showPct}
+        />
+        <MetricCard
           label="Response Time"
           value={v('responseTime')}
           accent={C.accentCyan}
@@ -387,14 +386,6 @@ export default function Overview() {
           value={v('resolutionTime')}
           accent={C.accentCyan}
           description={`Avg time to resolution for tickets closed during ${pl}`}
-        />
-        <MetricCard
-          label={`Unique Submitters — ${pl}`}
-          value={v('uniqueSubmitters')}
-          delta={d('uniqueSubmitters')}
-          accent={C.accentNeutral}
-          description={`Distinct users who submitted tickets during ${pl}`}
-          showPct={showPct}
         />
         <SLACard
           label="Response SLA"
@@ -420,8 +411,6 @@ export default function Overview() {
           inProcess={chartInProcess}
           section={section}
           loading={chartLoading}
-          axisFill={axisFill}
-          labelFill={labelFill}
         />
       </section>
     </div>

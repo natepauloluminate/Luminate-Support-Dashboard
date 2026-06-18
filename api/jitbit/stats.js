@@ -16,6 +16,101 @@ function toYMD(date) {
   return date.toISOString().slice(0, 10);
 }
 
+// ─── Business-hours helpers (Mon–Fri, 8am–5pm America/Chicago) ───────────────
+
+const CENTRAL_TZ   = 'America/Chicago';
+const BIZ_START_H  = 8;
+const BIZ_END_H    = 17;
+
+// Returns "YYYY-MM-DD" for a Date as seen in Central Time
+function toCentralDateStr(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CENTRAL_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// Returns UTC timestamp for a specific Central-Time hour on a "YYYY-MM-DD" date.
+// Uses the Intl offset at noon to adjust correctly for DST.
+function centralHourUTC(dateStr, hour) {
+  const guess = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00Z`);
+  let localH = parseInt(new Intl.DateTimeFormat('en-US', {
+    timeZone: CENTRAL_TZ, hour: 'numeric', hour12: false,
+  }).format(guess));
+  if (localH === 24) localH = 0;
+  return new Date(guess.getTime() + (hour - localH) * 3600000);
+}
+
+// Returns the same dateStr if it's Mon–Fri, otherwise advances to the next Monday
+function getEffectiveBusinessDay(dateStr) {
+  const dow = centralDOW(dateStr);
+  if (dow === 6) return nextCentralDay(nextCentralDay(dateStr)); // Sat → Mon
+  if (dow === 0) return nextCentralDay(dateStr);                 // Sun → Mon
+  return dateStr;
+}
+
+// Returns the Central-Time business day when the SLA clock first becomes active.
+// Uses the full timestamp (not just the date string) so it can detect after-hours submissions.
+// Weekend → Monday; weekday after business close → next business day.
+// This prevents late-Friday tickets from appearing in Friday's time metrics when
+// the team can't act on them until Monday.
+function getEffectiveSLADay(issueDateObj) {
+  const dateStr = toCentralDateStr(issueDateObj);
+  const dow = centralDOW(dateStr);
+  if (dow === 0) return nextCentralDay(dateStr);                 // Sun → Mon
+  if (dow === 6) return nextCentralDay(nextCentralDay(dateStr)); // Sat → Mon
+  // Weekday: check if submitted after business close
+  const bizClose = centralHourUTC(dateStr, BIZ_END_H);
+  if (issueDateObj >= bizClose) {
+    const next = nextCentralDay(dateStr);
+    const nextDow = centralDOW(next);
+    // Fri after close → Sat → Mon
+    if (nextDow === 6) return nextCentralDay(nextCentralDay(next));
+    return next;
+  }
+  return dateStr;
+}
+
+// Returns 0 (Sun)…6 (Sat) for a "YYYY-MM-DD" date in Central Time
+function centralDOW(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00Z`); // noon UTC is always same Central calendar day
+  const name = new Intl.DateTimeFormat('en-US', {
+    timeZone: CENTRAL_TZ, weekday: 'short',
+  }).format(d);
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(name);
+}
+
+// Advances a "YYYY-MM-DD" string by one Central calendar day
+function nextCentralDay(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return toCentralDateStr(d);
+}
+
+// Milliseconds of business time (Mon–Fri, 8am–5pm Central) between two Date objects
+function businessMs(start, end) {
+  if (!start || !end || end <= start) return 0;
+  let total = 0;
+  let dateStr    = toCentralDateStr(start);
+  const endStr   = toCentralDateStr(end);
+  while (dateStr <= endStr) {
+    const dow = centralDOW(dateStr);
+    if (dow >= 1 && dow <= 5) {
+      const bizOpen  = centralHourUTC(dateStr, BIZ_START_H);
+      const bizClose = centralHourUTC(dateStr, BIZ_END_H);
+      const oStart = Math.max(start.getTime(), bizOpen.getTime());
+      const oEnd   = Math.min(end.getTime(),   bizClose.getTime());
+      if (oEnd > oStart) total += oEnd - oStart;
+    }
+    dateStr = nextCentralDay(dateStr);
+  }
+  return total;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function getPeriodDates(period) {
   const now = new Date();
   const today = toYMD(now);
@@ -110,14 +205,14 @@ function formatDuration(ms) {
 
 function calcResponseSLA(tickets) {
   const responded = tickets.filter(t => t.StartDate && t.IssueDate);
-  const met = responded.filter(t => (new Date(t.StartDate) - new Date(t.IssueDate)) <= SLA_RESPONSE_MS && (new Date(t.StartDate) - new Date(t.IssueDate)) >= 0);
+  const met = responded.filter(t => businessMs(new Date(t.IssueDate), new Date(t.StartDate)) <= SLA_RESPONSE_MS);
   const pct = responded.length > 0 ? Math.round((met.length / responded.length) * 1000) / 10 : null;
   return { target: '04:00', met: met.length, total: responded.length, pct };
 }
 
 function calcResolutionSLA(tickets) {
   const resolved = tickets.filter(t => t.ResolvedDate && t.IssueDate);
-  const met = resolved.filter(t => (new Date(t.ResolvedDate) - new Date(t.IssueDate)) <= SLA_RESOLUTION_MS && (new Date(t.ResolvedDate) - new Date(t.IssueDate)) >= 0);
+  const met = resolved.filter(t => businessMs(new Date(t.IssueDate), new Date(t.ResolvedDate)) <= SLA_RESOLUTION_MS);
   const pct = resolved.length > 0 ? Math.round((met.length / resolved.length) * 1000) / 10 : null;
   return { target: '72:00', met: met.length, total: resolved.length, pct };
 }
@@ -125,8 +220,7 @@ function calcResolutionSLA(tickets) {
 function calcResponseTime(tickets) {
   const diffs = tickets
     .filter(t => t.StartDate && t.IssueDate)
-    .map(t => new Date(t.StartDate) - new Date(t.IssueDate))
-    .filter(d => d >= 0);
+    .map(t => businessMs(new Date(t.IssueDate), new Date(t.StartDate)));
   if (!diffs.length) return null;
   return formatDuration(diffs.reduce((a, b) => a + b, 0) / diffs.length);
 }
@@ -134,8 +228,7 @@ function calcResponseTime(tickets) {
 function calcResolutionTime(tickets) {
   const diffs = tickets
     .filter(t => t.ResolvedDate && t.IssueDate)
-    .map(t => new Date(t.ResolvedDate) - new Date(t.IssueDate))
-    .filter(d => d >= 0);
+    .map(t => businessMs(new Date(t.IssueDate), new Date(t.ResolvedDate)));
   if (!diffs.length) return null;
   return formatDuration(diffs.reduce((a, b) => a + b, 0) / diffs.length);
 }
@@ -148,17 +241,26 @@ function safeDelta(current, prior) {
 // Build [{date: 'Jun 5', opened: N, closed: N}, ...] from ticket arrays
 function buildTrendData(openedTickets, closedTickets, dates) {
   const days = {};
-  const from = new Date(dates.dateFrom + 'T00:00:00Z');
-  const to   = new Date(dates.dateTo   + 'T00:00:00Z');
+  // Weekdays only — same principle as buildTimeData; weekends create misleading dips
+  const from = new Date(dates.dateFrom + 'T12:00:00Z');
+  const to   = new Date(dates.dateTo   + 'T12:00:00Z');
   for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-    days[toYMD(d)] = { opened: 0, closed: 0 };
+    const dateStr = toYMD(d);
+    if (centralDOW(dateStr) >= 1 && centralDOW(dateStr) <= 5) {
+      days[dateStr] = { opened: 0, closed: 0 };
+    }
   }
   for (const t of openedTickets) {
-    const day = t.IssueDate?.slice(0, 10);
+    // Use Central Time date, then roll weekends to Monday so nothing is dropped
+    const day = t.IssueDate
+      ? getEffectiveBusinessDay(toCentralDateStr(new Date(t.IssueDate)))
+      : null;
     if (day && days[day]) days[day].opened++;
   }
   for (const t of closedTickets) {
-    const day = t.ResolvedDate?.slice(0, 10);
+    const day = t.ResolvedDate
+      ? getEffectiveBusinessDay(toCentralDateStr(new Date(t.ResolvedDate)))
+      : null;
     if (day && days[day]) days[day].closed++;
   }
   return Object.entries(days).map(([date, counts]) => ({
@@ -167,30 +269,38 @@ function buildTrendData(openedTickets, closedTickets, dates) {
   }));
 }
 
-// Build [{day: 'Mon', response: 0.7, resolution: 32.5}, ...] from opened tickets
+// Build [{day: 'Mon', response: 0.7, resolution: 32.5}, ...] — weekdays only,
+// times measured in business hours (Mon–Fri 8am–5pm Central).
+// Each ticket is attributed to the day the SLA clock first became active
+// (weekend and after-hours submissions roll to the next business day).
 function buildTimeData(openedTickets, dates) {
   const days = {};
-  const from = new Date(dates.dateFrom + 'T00:00:00Z');
-  const to   = new Date(dates.dateTo   + 'T00:00:00Z');
+  // Anchor at noon UTC so toYMD and toCentralDateStr agree on the calendar date
+  const from = new Date(dates.dateFrom + 'T12:00:00Z');
+  const to   = new Date(dates.dateTo   + 'T12:00:00Z');
   for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-    days[toYMD(d)] = { rt: [], rst: [] };
+    const dateStr = toYMD(d);
+    if (centralDOW(dateStr) >= 1 && centralDOW(dateStr) <= 5) {
+      days[dateStr] = { rt: [], rst: [] };
+    }
   }
   for (const t of openedTickets) {
-    const day = t.IssueDate?.slice(0, 10);
-    if (!day || !days[day]) continue;
+    if (!t.IssueDate) continue;
+    const issueDateObj = new Date(t.IssueDate);
+    // Use Central Time date + after-hours detection to find the right business day
+    const day = getEffectiveSLADay(issueDateObj);
+    if (!days[day]) continue;
     if (t.StartDate) {
-      const ms = new Date(t.StartDate) - new Date(t.IssueDate);
-      if (ms >= 0) days[day].rt.push(ms);
+      days[day].rt.push(businessMs(issueDateObj, new Date(t.StartDate)));
     }
     if (t.ResolvedDate) {
-      const ms = new Date(t.ResolvedDate) - new Date(t.IssueDate);
-      if (ms >= 0) days[day].rst.push(ms);
+      days[day].rst.push(businessMs(issueDateObj, new Date(t.ResolvedDate)));
     }
   }
   const avgHours = (arr) =>
     arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / 360000) / 10 : 0;
   return Object.entries(days).map(([date, d]) => {
-    const dateObj  = new Date(date + 'T12:00:00Z');
+    const dateObj   = new Date(date + 'T12:00:00Z');
     const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const weekday   = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
     return {

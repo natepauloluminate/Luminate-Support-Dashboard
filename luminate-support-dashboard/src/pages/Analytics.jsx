@@ -188,6 +188,7 @@ export default function Analytics() {
   const tooltipStyle = {
     contentStyle: { background: 'var(--bg-card)', border: '1px solid var(--purple)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)' },
     labelStyle:   { color: 'var(--text-secondary)' },
+    itemStyle:    { color: 'var(--text-primary)' },
     cursor:       { stroke: 'var(--border)' },
   };
   const ch = { gridStroke, axisTick, tooltipStyle };
@@ -241,7 +242,7 @@ export default function Analytics() {
 
       <main style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed — selected period">
+        <ChartCard title="Ticket Volume Trend" subtitle="Opened vs. closed">
           <TrendArea trendData={trendData} ch={ch} />
         </ChartCard>
 
@@ -249,7 +250,7 @@ export default function Analytics() {
           <ChartCard title="Queue Status" subtitle="Opened vs. closed — selected period &amp; section">
             <StatusDonut statusData={statusData} ch={ch} />
           </ChartCard>
-          <ChartCard title="Time Metrics" subtitle="Avg response & resolution by day (hrs)">
+          <ChartCard title="Time Metrics" subtitle="Avg response &amp; resolution by day (business hours)">
             <TimeBar timeData={timeData} ch={ch} />
           </ChartCard>
           <ChartCard title="By Category" subtitle="Tickets opened per department — selected period">

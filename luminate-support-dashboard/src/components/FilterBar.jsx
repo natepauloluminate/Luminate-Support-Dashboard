@@ -29,9 +29,12 @@ export default function FilterBar({
   const navigate = useNavigate();
   const [overviewHover,  setOverviewHover]  = useState(false);
   const [analyticsHover, setAnalyticsHover] = useState(false);
+  const [slaHover,       setSlaHover]       = useState(false);
 
   const isOverview  = location.pathname === '/';
   const isAnalytics = location.pathname === '/analytics';
+  const isSLA       = location.pathname === '/sla';
+  const showFilters = !isSLA;
 
   const activeTab = {
     background: 'var(--purple)',
@@ -95,40 +98,46 @@ export default function FilterBar({
     }}>
 
       {/* Period select */}
-      <div style={{ position: 'relative' }}>
-        <select style={selectStyle} value={period} onChange={e => setPeriod(e.target.value)}>
-          {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <span style={caretStyle}>▾</span>
-      </div>
+      {showFilters && (
+        <div style={{ position: 'relative' }}>
+          <select style={selectStyle} value={period} onChange={e => setPeriod(e.target.value)}>
+            {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <span style={caretStyle}>▾</span>
+        </div>
+      )}
 
       {/* Section select */}
-      <div style={{ position: 'relative' }}>
-        <select style={selectStyle} value={section} onChange={e => setSection(e.target.value)}>
-          {SECTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <span style={caretStyle}>▾</span>
-      </div>
+      {showFilters && (
+        <div style={{ position: 'relative' }}>
+          <select style={selectStyle} value={section} onChange={e => setSection(e.target.value)}>
+            {SECTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <span style={caretStyle}>▾</span>
+        </div>
+      )}
 
-      {/* Stage 4: percentage toggle */}
-      <button
-        id="pct-toggle-anchor"
-        onClick={onTogglePct}
-        style={{
-          background: showPct ? 'var(--purple)' : 'transparent',
-          border: `1px solid ${showPct ? 'var(--purple)' : 'var(--border)'}`,
-          borderRadius: '5px',
-          color: showPct ? '#ffffff' : 'var(--text-muted)',
-          padding: '5px 10px',
-          fontSize: '12px',
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-          transition: 'background 150ms ease, border-color 150ms ease, color 150ms ease',
-          letterSpacing: '0.02em',
-        }}
-      >
-        %
-      </button>
+      {/* Percentage toggle */}
+      {showFilters && (
+        <button
+          id="pct-toggle-anchor"
+          onClick={onTogglePct}
+          style={{
+            background: showPct ? 'var(--purple)' : 'transparent',
+            border: `1px solid ${showPct ? 'var(--purple)' : 'var(--border)'}`,
+            borderRadius: '5px',
+            color: showPct ? '#ffffff' : 'var(--text-muted)',
+            padding: '5px 10px',
+            fontSize: '12px',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            transition: 'background 150ms ease, border-color 150ms ease, color 150ms ease',
+            letterSpacing: '0.02em',
+          }}
+        >
+          %
+        </button>
+      )}
 
       {/* Page nav tabs — far right */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
@@ -147,6 +156,14 @@ export default function FilterBar({
           onMouseLeave={() => setAnalyticsHover(false)}
         >
           Analytics
+        </button>
+        <button
+          style={isSLA ? activeTab : inactiveTab(slaHover)}
+          onClick={() => navigate('/sla')}
+          onMouseEnter={() => setSlaHover(true)}
+          onMouseLeave={() => setSlaHover(false)}
+        >
+          SLA
         </button>
       </div>
 
