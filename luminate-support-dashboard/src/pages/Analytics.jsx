@@ -33,6 +33,25 @@ const SECTION_META = [
   { id: '167044', name: 'Other' },
 ];
 
+const PERIOD_LABEL = {
+  today:       'Today',
+  yesterday:   'Yesterday',
+  last7days:   'Last 7 Days',
+  last30days:  'Last 30 Days',
+  thisquarter: 'This Quarter',
+  thisyear:    'This Year',
+};
+
+const SECTION_LABEL = {
+  '':       'All Sections',
+  '163173': 'Information Technology',
+  '168963': 'Human Resources',
+  '167008': 'Accounting / Finance',
+  '167041': 'Branch & Loan Operations',
+  '167039': 'Bank Operations',
+  '167044': 'Other',
+};
+
 function TrendArea({ trendData, ch }) {
   return (
     <>
@@ -61,7 +80,7 @@ function TrendArea({ trendData, ch }) {
           <CartesianGrid strokeDasharray="3 3" stroke={ch.gridStroke} vertical={false} />
           <XAxis dataKey="date" tick={ch.axisTick} axisLine={false} tickLine={false} />
           <YAxis tick={ch.axisTick} axisLine={false} tickLine={false} />
-          <Tooltip {...ch.tooltipStyle} />
+          <Tooltip {...ch.tooltipStyle} labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? _} />
           <Area type="monotone" dataKey="opened" name="Opened"
             stroke="#7C3AED" strokeWidth={2} fill="url(#gOpened)" dot={false}
             activeDot={{ r: 4, fill: '#7C3AED' }}
@@ -225,6 +244,9 @@ export default function Analytics() {
   const trendData = data?.trendData ?? [];
   const timeData  = data?.timeData  ?? [];
 
+  const periodLabel  = PERIOD_LABEL[period]  ?? period;
+  const sectionLabel = SECTION_LABEL[section] ?? section;
+
   return (
     <div id="analytics-root">
       <Header
@@ -247,13 +269,13 @@ export default function Analytics() {
         </ChartCard>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
-          <ChartCard title="Queue Status" subtitle="Opened vs. closed — selected period &amp; section">
+          <ChartCard title="Queue Status" subtitle={`Opened vs. closed — ${periodLabel}, ${sectionLabel}`}>
             <StatusDonut statusData={statusData} ch={ch} />
           </ChartCard>
           <ChartCard title="Time Metrics" subtitle="Avg response &amp; resolution by day (business hours)">
             <TimeBar timeData={timeData} ch={ch} />
           </ChartCard>
-          <ChartCard title="By Category" subtitle="Tickets opened per department — selected period">
+          <ChartCard title="By Category" subtitle={`Tickets opened per department — ${periodLabel}`}>
             <CategoryBar categoryData={categoryData} ch={ch} />
           </ChartCard>
         </div>

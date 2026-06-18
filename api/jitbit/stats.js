@@ -263,10 +263,12 @@ function buildTrendData(openedTickets, closedTickets, dates) {
       : null;
     if (day && days[day]) days[day].closed++;
   }
-  return Object.entries(days).map(([date, counts]) => ({
-    date: new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    ...counts,
-  }));
+  return Object.entries(days).map(([date, counts]) => {
+    const dateObj   = new Date(date + 'T12:00:00Z');
+    const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekday   = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    return { date: shortDate, label: `${weekday}, ${shortDate}`, ...counts };
+  });
 }
 
 // Build [{day: 'Mon', response: 0.7, resolution: 32.5}, ...] — weekdays only,
