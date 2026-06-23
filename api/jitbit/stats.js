@@ -371,6 +371,8 @@ module.exports = async function handler(req, res) {
 
   const { period = 'today', section } = req.query;
   const sectionId = section || null;
+  const isDetailMode = req.query.detail === 'true';
+  const isLongPeriod = period === 'thisquarter' || period === 'thisyear';
 
   const cacheKey = `${period}|${sectionId ?? ''}`;
   const ttl = CACHE_TTL_MS[period] ?? 25_000;
@@ -384,6 +386,62 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  // Fast summary path for long periods — returns Stats+Techs in ~2s without ticket pagination.
+  // The frontend receives detailPending:true and fires a ?detail=true follow-up in the background.
+  if (isLongPeriod && !isDetailMode) {
+    try {
+      const now = new Date();
+      const currentDates = getPeriodDates(period);
+      const [stats, techUsers] = await Promise.all([fetchStats(), fetchTechs()]);
+
+      let techsOnline = [], techsOOO = [];
+      const techsAccessible = techUsers.accessible;
+      if (techUsers.accessible && techUsers.users) {
+        const tenMinAgo = new Date(now - 10 * 60 * 1000);
+        techsOnline = techUsers.users
+          .filter(u => u.LastSeen && new Date(u.LastSeen) >= tenMinAgo)
+          .map(u => u.Email || u.Username);
+        techsOOO = techUsers.users
+          .filter(u => u.OutOfOffice === true)
+          .map(u => u.Email || u.Username);
+      }
+
+      return res.status(200).json({
+        ok: true,
+        timestamp: now.toISOString(),
+        period,
+        detailPending: true,
+        dateFrom: currentDates.dateFrom,
+        dateTo: currentDates.dateTo,
+        totalTickets: stats.TotalTickets,
+        newTickets: stats.NewTickets,
+        closed: stats.Closed,
+        inProcess: stats.InProcess,
+        openedCount:      null,
+        closedCount:      null,
+        uniqueSubmitters: null,
+        _debugTicketKeys: [],
+        ticketsPerHour:   null,
+        ticketsPerDay:    null,
+        responseTime:     null,
+        resolutionTime:   null,
+        techsOnline,
+        techsOOO,
+        techsAccessible,
+        responseSLA:   null,
+        resolutionSLA: null,
+        trendData:     [],
+        timeData:      [],
+        deltas:        null,
+      });
+    } catch (err) {
+      const status = err.status === 401 ? 401 : 502;
+      return res.status(status).json({ error: err.message });
+    }
+  }
+
+  // Full computation path — long periods reach here only when ?detail=true.
+  // Result is cached so subsequent requests (including fast-path re-checks) serve from cache.
   try {
     const currentDates = getPeriodDates(period);
     const priorDates = getPriorPeriodDates(currentDates);

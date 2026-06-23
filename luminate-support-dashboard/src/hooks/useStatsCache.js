@@ -16,6 +16,9 @@ const LOAD_ORDER = [
 // Module-level cache — survives React re-renders and SPA navigation
 const _cache = new Map();
 
+// Tracks in-flight detail fetches so section/period changes don't spawn duplicates
+const _pendingDetails = new Set();
+
 export async function fetchStat(period, section) {
   const key = `${period}|${section}`;
   if (_cache.has(key)) return _cache.get(key);
@@ -77,6 +80,28 @@ export function useStatsCache(section) {
             if (v) groupData[p] = v;
           }
           setByPeriod(prev => ({ ...prev, ...groupData }));
+
+          // For periods that returned a fast summary (detailPending), fire background detail fetch
+          for (const p of group) {
+            const v = getCached(p, section);
+            const detailKey = `${p}|${section}`;
+            if (v?.detailPending && !_pendingDetails.has(detailKey)) {
+              _pendingDetails.add(detailKey);
+              (async () => {
+                try {
+                  const params = new URLSearchParams({ period: p, detail: 'true' });
+                  if (section) params.set('section', section);
+                  const r = await fetch(`${BASE_URL}/api/jitbit/stats?${params}`);
+                  if (!r.ok || cancelled) return;
+                  const data = await r.json();
+                  _cache.set(detailKey, data);
+                  if (!cancelled) setByPeriod(prev => ({ ...prev, [p]: data }));
+                } catch { /* silent */ } finally {
+                  _pendingDetails.delete(detailKey);
+                }
+              })();
+            }
+          }
 
           // Clear loading as soon as today is ready
           if (group.includes('today')) {
