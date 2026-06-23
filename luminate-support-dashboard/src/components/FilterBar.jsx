@@ -118,7 +118,7 @@ export default function FilterBar({
       )}
 
       {/* Percentage toggle */}
-      {showFilters && (
+      {isOverview && (
         <button
           id="pct-toggle-anchor"
           onClick={onTogglePct}

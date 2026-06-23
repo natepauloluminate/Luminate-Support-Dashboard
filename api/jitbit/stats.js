@@ -159,10 +159,17 @@ function getPeriodDates(period) {
   }
 }
 
-function getPriorPeriodDates(currentDates) {
+function getPriorPeriodDates(currentDates, period) {
   const from = new Date(currentDates.dateFrom + 'T00:00:00Z');
   const to = new Date(currentDates.dateTo + 'T00:00:00Z');
   const spanDays = Math.round((to - from) / 86400000) + 1;
+
+  // Week-over-week for yesterday: same weekday 7 days prior avoids Saturday/Sunday 0-ticket comparisons
+  if (period === 'yesterday') {
+    const priorDate = new Date(from.getTime() - 7 * 86400000);
+    const priorDateStr = toYMD(priorDate);
+    return { dateFrom: priorDateStr, dateTo: priorDateStr };
+  }
 
   const priorTo = new Date(from);
   priorTo.setUTCDate(priorTo.getUTCDate() - 1);
@@ -457,7 +464,7 @@ module.exports = async function handler(req, res) {
   // Result is cached so subsequent requests (including fast-path re-checks) serve from cache.
   try {
     const currentDates = getPeriodDates(period);
-    const priorDates = getPriorPeriodDates(currentDates);
+    const priorDates = getPriorPeriodDates(currentDates, period);
     const now = new Date();
     const currentHour = now.getUTCHours();
 
