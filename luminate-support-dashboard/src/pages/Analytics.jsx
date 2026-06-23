@@ -244,7 +244,7 @@ export default function Analytics() {
     { name: 'Closed', value: data?.closedCount ?? 0, color: '#06B6D4' },
   ];
 
-  const chartLoading = data === null;
+  const chartLoading = data === null || data?.detailPending === true;
   const trendData = data?.trendData ?? [];
   const timeData  = data?.timeData  ?? [];
 

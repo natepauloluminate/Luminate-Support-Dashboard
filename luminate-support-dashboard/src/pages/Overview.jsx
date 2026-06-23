@@ -302,8 +302,8 @@ export default function Overview() {
   // Show full-screen loader on first visit only (no cached today data yet)
   if (loading && !data) return <LoadingScreen />;
 
-  const cardLoading = data === null;
-  const v = (key) => data ? (data[key] ?? '—') : '—';
+  const cardLoading = data === null || data?.detailPending === true;
+  const v = (key) => (data && !data.detailPending) ? (data[key] ?? '—') : '—';
   const d = (key) => data?.deltas?.[key] ?? undefined;
 
   const responseSLA   = data?.responseSLA   ?? null;
