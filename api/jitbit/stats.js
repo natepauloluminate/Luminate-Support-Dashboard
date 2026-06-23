@@ -12,8 +12,8 @@ const CACHE_TTL_MS = {
   yesterday:    10 * 60 * 1000,   // 10 min — historical, doesn't change after day ends
   last7days:     5 * 60 * 1000,   // 5 min
   last30days:   10 * 60 * 1000,   // 10 min
-  thisquarter:  15 * 60 * 1000,   // 15 min
-  thisyear:     15 * 60 * 1000,   // 15 min
+  thisquarter:  20 * 60 * 1000,   // 20 min — quarterly view changes slowly
+  thisyear:     30 * 60 * 1000,   // 30 min — yearly view barely moves tick-by-tick
 };
 
 function setCorsHeaders(res) {
@@ -178,18 +178,37 @@ async function fetchStats() {
   return res.json();
 }
 
-async function fetchAllTickets(params) {
-  const tickets = [];
-  let offset = 0;
+async function fetchTicketPage(params, offset) {
+  const qs = new URLSearchParams({ ...params, count: '300', offset: String(offset) });
+  const res = await fetch(`${JITBIT_BASE_URL}Tickets?${qs}`, { headers: jitbitHeaders() });
+  if (!res.ok) throw Object.assign(new Error('JitBit Tickets failed'), { status: res.status });
+  return res.json();
+}
 
+async function fetchAllTickets(params) {
+  const PAGE = 300;
+  const PARALLEL = 3; // pages fetched simultaneously — stays well under 90 req/min
+
+  // Fetch first page serially; if not full, we're done
+  const first = await fetchTicketPage(params, 0);
+  if (first.length < PAGE) return first;
+
+  const tickets = [...first];
+  let offset = PAGE;
+
+  // Fire PARALLEL pages at once, advance until a batch contains a partial page
   while (true) {
-    const qs = new URLSearchParams({ ...params, count: '300', offset: String(offset) });
-    const res = await fetch(`${JITBIT_BASE_URL}Tickets?${qs}`, { headers: jitbitHeaders() });
-    if (!res.ok) throw Object.assign(new Error('JitBit Tickets failed'), { status: res.status });
-    const batch = await res.json();
-    tickets.push(...batch);
-    if (batch.length < 300) break;
-    offset += 300;
+    const offsets = Array.from({ length: PARALLEL }, (_, i) => offset + i * PAGE);
+    const batches = await Promise.all(offsets.map(o => fetchTicketPage(params, o)));
+
+    let done = false;
+    for (const batch of batches) {
+      tickets.push(...batch);
+      if (batch.length < PAGE) { done = true; break; }
+    }
+
+    if (done) break;
+    offset += PARALLEL * PAGE;
   }
 
   return tickets;
