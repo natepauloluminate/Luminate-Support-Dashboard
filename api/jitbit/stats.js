@@ -182,24 +182,28 @@ async function fetchTicketPage(params, offset) {
   const qs = new URLSearchParams({ ...params, count: '300', offset: String(offset) });
   const res = await fetch(`${JITBIT_BASE_URL}Tickets?${qs}`, { headers: jitbitHeaders() });
   if (!res.ok) throw Object.assign(new Error('JitBit Tickets failed'), { status: res.status });
-  return res.json();
+  const raw = await res.json();
+  // Project only fields used downstream — ticket HTML bodies can be 10-50 KB each and cause OOM
+  return raw.map(({ IssueDate, StartDate, ResolvedDate, UserID }) =>
+    ({ IssueDate, StartDate, ResolvedDate, UserID })
+  );
 }
 
 async function fetchAllTickets(params, maxPages = 20) {
   const PAGE = 300;
-  const PARALLEL = 3; // pages fetched simultaneously — stays well under 90 req/min
+  const PARALLEL = 3;
 
-  // Fetch first page serially; if not full, we're done
   const first = await fetchTicketPage(params, 0);
   if (first.length < PAGE || maxPages <= 1) return first;
+
+  // Signature of the first ticket — detects JitBit's wrap-around pagination bug where it returns
+  // offset-0 data again once you exceed the real result count (observed on thisquarter closedParams).
+  const firstSig = first[0] ? JSON.stringify(first[0]) : null;
 
   const tickets = [...first];
   let offset = PAGE;
   let pagesLoaded = 1;
 
-  // Fire PARALLEL pages at once, advance until a batch contains a partial page or we hit maxPages.
-  // The maxPages cap prevents an infinite loop when JitBit returns 300 records at every offset
-  // for certain date ranges (observed with thisquarter closedParams).
   while (pagesLoaded < maxPages) {
     const batchSize = Math.min(PARALLEL, maxPages - pagesLoaded);
     const offsets = Array.from({ length: batchSize }, (_, i) => offset + i * PAGE);
@@ -208,6 +212,10 @@ async function fetchAllTickets(params, maxPages = 20) {
     let done = false;
     for (const batch of batches) {
       pagesLoaded++;
+      if (firstSig && batch.length > 0 && JSON.stringify(batch[0]) === firstSig) {
+        done = true;
+        break;
+      }
       tickets.push(...batch);
       if (batch.length < PAGE) { done = true; break; }
     }
