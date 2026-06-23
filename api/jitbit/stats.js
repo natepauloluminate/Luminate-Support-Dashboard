@@ -185,30 +185,35 @@ async function fetchTicketPage(params, offset) {
   return res.json();
 }
 
-async function fetchAllTickets(params) {
+async function fetchAllTickets(params, maxPages = 20) {
   const PAGE = 300;
   const PARALLEL = 3; // pages fetched simultaneously — stays well under 90 req/min
 
   // Fetch first page serially; if not full, we're done
   const first = await fetchTicketPage(params, 0);
-  if (first.length < PAGE) return first;
+  if (first.length < PAGE || maxPages <= 1) return first;
 
   const tickets = [...first];
   let offset = PAGE;
+  let pagesLoaded = 1;
 
-  // Fire PARALLEL pages at once, advance until a batch contains a partial page
-  while (true) {
-    const offsets = Array.from({ length: PARALLEL }, (_, i) => offset + i * PAGE);
+  // Fire PARALLEL pages at once, advance until a batch contains a partial page or we hit maxPages.
+  // The maxPages cap prevents an infinite loop when JitBit returns 300 records at every offset
+  // for certain date ranges (observed with thisquarter closedParams).
+  while (pagesLoaded < maxPages) {
+    const batchSize = Math.min(PARALLEL, maxPages - pagesLoaded);
+    const offsets = Array.from({ length: batchSize }, (_, i) => offset + i * PAGE);
     const batches = await Promise.all(offsets.map(o => fetchTicketPage(params, o)));
 
     let done = false;
     for (const batch of batches) {
+      pagesLoaded++;
       tickets.push(...batch);
       if (batch.length < PAGE) { done = true; break; }
     }
 
     if (done) break;
-    offset += PARALLEL * PAGE;
+    offset += batchSize * PAGE;
   }
 
   return tickets;
