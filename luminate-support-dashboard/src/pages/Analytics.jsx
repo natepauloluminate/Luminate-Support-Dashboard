@@ -145,12 +145,12 @@ function TimeBar({ timeData, ch }) {
     <>
       <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 10, height: 10, background: '#7C3AED', borderRadius: 2, display: 'inline-block' }} />
-          Resolution
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 10, height: 10, background: '#06B6D4', borderRadius: 2, display: 'inline-block' }} />
           Response
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 10, height: 10, background: '#7C3AED', borderRadius: 2, display: 'inline-block' }} />
+          Resolution
         </span>
       </div>
       <ResponsiveContainer width="100%" height={170}>
@@ -163,8 +163,8 @@ function TimeBar({ timeData, ch }) {
             formatter={(v, n) => [`${v}h`, n]}
             labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? _}
           />
-          <Bar dataKey="resolution" name="Resolution" fill="#7C3AED" radius={[3,3,0,0]} maxBarSize={12} />
           <Bar dataKey="response"   name="Response"   fill="#06B6D4" radius={[3,3,0,0]} maxBarSize={12} />
+          <Bar dataKey="resolution" name="Resolution" fill="#7C3AED" radius={[3,3,0,0]} maxBarSize={12} />
         </BarChart>
       </ResponsiveContainer>
     </>
