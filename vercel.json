@@ -9,8 +9,5 @@
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "crons": [
-    { "path": "/api/jitbit/warmup", "schedule": "* * * * *" }
   ]
 }
