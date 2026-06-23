@@ -2,6 +2,20 @@ const JITBIT_BASE_URL = process.env.JITBIT_BASE_URL || 'https://luminatebank.jit
 const JITBIT_TOKEN = process.env.JITBIT_TOKEN;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
+// ─── Server-side response cache ───────────────────────────────────────────────
+// Module-level Map persists across warm-instance reuse; resets on cold start.
+// Works on any Node.js-compatible host — no external dependencies.
+const _serverCache = new Map();
+
+const CACHE_TTL_MS = {
+  today:        25 * 1000,        // 25 s — just under the 30 s frontend refresh interval
+  yesterday:    10 * 60 * 1000,   // 10 min — historical, doesn't change after day ends
+  last7days:     5 * 60 * 1000,   // 5 min
+  last30days:   10 * 60 * 1000,   // 10 min
+  thisquarter:  15 * 60 * 1000,   // 15 min
+  thisyear:     15 * 60 * 1000,   // 15 min
+};
+
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -339,6 +353,18 @@ module.exports = async function handler(req, res) {
   const { period = 'today', section } = req.query;
   const sectionId = section || null;
 
+  const cacheKey = `${period}|${sectionId ?? ''}`;
+  const ttl = CACHE_TTL_MS[period] ?? 25_000;
+  const cached = _serverCache.get(cacheKey);
+  if (cached) {
+    const elapsed = Date.now() - cached.at;
+    if (elapsed < ttl) {
+      const remainingS = Math.max(1, Math.floor((ttl - elapsed) / 1000));
+      res.setHeader('Cache-Control', `public, max-age=${remainingS}, stale-while-revalidate=${Math.floor(ttl / 1000)}`);
+      return res.status(200).json(cached.data);
+    }
+  }
+
   try {
     const currentDates = getPeriodDates(period);
     const priorDates = getPriorPeriodDates(currentDates);
@@ -390,7 +416,7 @@ module.exports = async function handler(req, res) {
         .map(u => u.Email || u.Username);
     }
 
-    return res.status(200).json({
+    const payload = {
       ok: true,
       timestamp: now.toISOString(),
       period,
@@ -422,7 +448,21 @@ module.exports = async function handler(req, res) {
         perHour:          safeDelta(ticketsPerHour,    priorPerHour),
         perDay:           safeDelta(ticketsPerDay,     priorPerDay),
       },
-    });
+    };
+
+    _serverCache.set(cacheKey, { data: payload, at: Date.now() });
+
+    // Evict entries older than 30 min to prevent unbounded growth on long-lived instances
+    if (_serverCache.size > 100) {
+      const cutoff = Date.now() - 30 * 60_000;
+      for (const [k, v] of _serverCache) {
+        if (v.at < cutoff) _serverCache.delete(k);
+      }
+    }
+
+    const maxAge = Math.floor(ttl / 1000);
+    res.setHeader('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`);
+    return res.status(200).json(payload);
   } catch (err) {
     const status = err.status === 401 ? 401 : 502;
     return res.status(status).json({ error: err.message });

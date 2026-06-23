@@ -95,12 +95,17 @@ export function useStatsCache(section) {
       })();
     }
 
-    // Only refresh "today" on the 30 s interval — historical periods don't change mid-session
+    // Only refresh "today" on the 30 s interval — historical periods don't change mid-session.
+    // Uses cache: 'no-cache' to bypass the browser's HTTP cache and always get fresh data.
     async function refreshToday() {
       if (document.hidden) return;
-      _cache.delete(`today|${section}`);
       try {
-        const data = await fetchStat('today', section);
+        const params = new URLSearchParams({ period: 'today' });
+        if (section) params.set('section', section);
+        const res = await fetch(`${BASE_URL}/api/jitbit/stats?${params}`, { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json();
+        _cache.set(`today|${section}`, data);
         if (!cancelled) {
           setByPeriod(prev => ({ ...prev, today: data }));
           setLastSync(new Date());

@@ -4,10 +4,13 @@
   "framework": null,
   "functions": {
     "api/**/*.js": {
-      "memory": 128
+      "memory": 256
     }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/jitbit/warmup", "schedule": "* * * * *" }
   ]
 }
