@@ -96,7 +96,12 @@ function TrendArea({ trendData, ch }) {
 }
 
 function StatusDonut({ statusData, ch }) {
-  const total = statusData.reduce((s, d) => s + d.value, 0).toLocaleString();
+  const opened = statusData.find(d => d.name === 'Opened')?.value ?? 0;
+  const closed = statusData.find(d => d.name === 'Closed')?.value ?? 0;
+  // Net flow = inflow − outflow. Positive → backlog growing (red), negative → shrinking (green).
+  const net = opened - closed;
+  const netColor = net > 0 ? '#F87171' : net < 0 ? '#34D399' : 'var(--text-primary)';
+  const netLabel = `${net > 0 ? '+' : net < 0 ? '−' : ''}${Math.abs(net).toLocaleString()}`;
   return (
     <>
       <div style={{ position: 'relative', height: 190 }}>
@@ -119,10 +124,10 @@ function StatusDonut({ statusData, ch }) {
           transform: 'translate(-50%,-50%)',
           textAlign: 'center', pointerEvents: 'none',
         }}>
-          <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-            {total}
+          <div style={{ fontSize: 20, fontWeight: 500, color: netColor, fontVariantNumeric: 'tabular-nums' }}>
+            {netLabel}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Total</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Net change</div>
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
