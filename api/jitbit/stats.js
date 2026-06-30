@@ -47,12 +47,21 @@ const CENTRAL_TZ   = 'America/Chicago';
 const BIZ_START_H  = 8;
 const BIZ_END_H    = 17;
 
+// Constructing Intl.DateTimeFormat is expensive and these run in hot per-day loops
+// over thousands of tickets, so build the formatters once at module load.
+const _fmtYMD  = new Intl.DateTimeFormat('en-US', { timeZone: CENTRAL_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const _fmtHour = new Intl.DateTimeFormat('en-US', { timeZone: CENTRAL_TZ, hour: 'numeric', hour12: false });
+const _fmtDOW  = new Intl.DateTimeFormat('en-US', { timeZone: CENTRAL_TZ, weekday: 'short' });
+
+// Per-date memo caches. centralDOW / centralHourUTC are pure functions of a calendar
+// date (timezone is fixed), and businessMs revisits the same days across many tickets,
+// so caching collapses what was millions of Intl calls down to one per distinct day.
+const _dowCache     = new Map();
+const _bizHourCache = new Map();
+
 // Returns "YYYY-MM-DD" for a Date as seen in Central Time
 function toCentralDateStr(date) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: CENTRAL_TZ,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(date);
+  const parts = _fmtYMD.formatToParts(date);
   const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}`;
 }
@@ -60,12 +69,15 @@ function toCentralDateStr(date) {
 // Returns UTC timestamp for a specific Central-Time hour on a "YYYY-MM-DD" date.
 // Uses the Intl offset at noon to adjust correctly for DST.
 function centralHourUTC(dateStr, hour) {
+  const key = `${dateStr}|${hour}`;
+  const hit = _bizHourCache.get(key);
+  if (hit !== undefined) return new Date(hit);
   const guess = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00Z`);
-  let localH = parseInt(new Intl.DateTimeFormat('en-US', {
-    timeZone: CENTRAL_TZ, hour: 'numeric', hour12: false,
-  }).format(guess));
+  let localH = parseInt(_fmtHour.format(guess));
   if (localH === 24) localH = 0;
-  return new Date(guess.getTime() + (hour - localH) * 3600000);
+  const ms = guess.getTime() + (hour - localH) * 3600000;
+  _bizHourCache.set(key, ms);
+  return new Date(ms);
 }
 
 // Returns the same dateStr if it's Mon–Fri, otherwise advances to the next Monday
@@ -100,11 +112,13 @@ function getEffectiveSLADay(issueDateObj) {
 
 // Returns 0 (Sun)…6 (Sat) for a "YYYY-MM-DD" date in Central Time
 function centralDOW(dateStr) {
+  const hit = _dowCache.get(dateStr);
+  if (hit !== undefined) return hit;
   const d = new Date(`${dateStr}T12:00:00Z`); // noon UTC is always same Central calendar day
-  const name = new Intl.DateTimeFormat('en-US', {
-    timeZone: CENTRAL_TZ, weekday: 'short',
-  }).format(d);
-  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(name);
+  const name = _fmtDOW.format(d);
+  const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(name);
+  _dowCache.set(dateStr, dow);
+  return dow;
 }
 
 // Advances a "YYYY-MM-DD" string by one Central calendar day
@@ -210,19 +224,40 @@ async function fetchStats() {
   return res.json();
 }
 
-async function fetchTicketPage(params, offset) {
+const PAGE_TIMEOUT_MS = 30_000;
+const PAGE_MAX_ATTEMPTS = 3;
+
+async function fetchTicketPage(params, offset, attempt = 1) {
   const qs = new URLSearchParams({ ...params, count: '300', offset: String(offset) });
-  const res = await fetch(`${JITBIT_BASE_URL}Tickets?${qs}`, { headers: jitbitHeaders() });
-  if (!res.ok) throw Object.assign(new Error('JitBit Tickets failed'), { status: res.status });
-  const raw = await res.json();
-  // Project only fields used downstream — ticket HTML bodies can be 10-50 KB each and cause OOM
-  return raw.map(({ IssueDate, StartDate, ResolvedDate, UserID }) =>
-    ({ IssueDate, StartDate, ResolvedDate, UserID })
-  );
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PAGE_TIMEOUT_MS);
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`${JITBIT_BASE_URL}Tickets?${qs}`, { headers: jitbitHeaders(), signal: ctrl.signal });
+    if (!res.ok) throw Object.assign(new Error('JitBit Tickets failed'), { status: res.status });
+    const raw = await res.json();
+    // Project only fields used downstream — keeps memory low across thousands of tickets
+    return raw.map(({ IssueDate, StartDate, ResolvedDate, UserID }) =>
+      ({ IssueDate, StartDate, ResolvedDate, UserID })
+    );
+  } catch (err) {
+    // A hung connection (AbortError), rate-limit (429), or transient 5xx is retriable — without
+    // this a single stuck request would stall the whole function until the maxDuration wall.
+    const retriable = err.name === 'AbortError' || err.status === 429 || err.status >= 500;
+    if (retriable && attempt < PAGE_MAX_ATTEMPTS) {
+      console.warn(`[stats] page offset=${offset} attempt=${attempt} failed (${err.name || err.status}) after ${Date.now() - t0}ms — retrying`);
+      return fetchTicketPage(params, offset, attempt + 1);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchAllTickets(params, maxPages = 20) {
   const PAGE = 300;
+  // JitBit serializes requests per token, so wider waves don't speed fetching up;
+  // 5 keeps a modest pipeline without burying the rate limit.
   const WAVE = 5;
 
   const tickets = [];
