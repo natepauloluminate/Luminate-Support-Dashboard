@@ -4,9 +4,16 @@
   "framework": null,
   "functions": {
     "api/**/*.js": {
-      "memory": 256
+      "maxDuration": 300,
+      "memory": 1024
     }
   },
+  "crons": [
+    { "path": "/api/jitbit/stats?period=thisyear",                "schedule": "0 * * * *" },
+    { "path": "/api/jitbit/stats?period=thisquarter",             "schedule": "15 * * * *" },
+    { "path": "/api/jitbit/stats?period=thisyear&detail=true",    "schedule": "30 * * * *" },
+    { "path": "/api/jitbit/stats?period=thisquarter&detail=true", "schedule": "45 * * * *" }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

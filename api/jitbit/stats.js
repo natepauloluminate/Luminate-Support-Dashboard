@@ -26,6 +26,17 @@ function jitbitHeaders() {
   return { Authorization: `Bearer ${JITBIT_TOKEN}` };
 }
 
+// Edge (CDN) cache policy for successful 200 responses only. Long periods are
+// expensive to compute and change slowly, so they get a long shared-cache TTL;
+// everything else stays near-real-time.
+function setCacheHeaders(res, period) {
+  if (period === 'thisquarter' || period === 'thisyear') {
+    res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=86400');
+  } else {
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+  }
+}
+
 function toYMD(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -159,6 +170,20 @@ function getPeriodDates(period) {
   }
 }
 
+// Actual number of hours a period spans: dateFrom 00:00 UTC → now for an ongoing
+// period (one whose dateTo is today), or the full calendar span (through the end
+// of dateTo) for a past period. Used as the ticketsPerHour denominator so the rate
+// is correct for multi-day periods, not just same-day ones.
+function periodHours(dates, now) {
+  const start = new Date(dates.dateFrom + 'T00:00:00Z');
+  if (dates.dateTo === toYMD(now)) {
+    return (now - start) / 3600000;
+  }
+  const end = new Date(dates.dateTo + 'T00:00:00Z');
+  end.setUTCDate(end.getUTCDate() + 1); // through the end of the last day
+  return (end - start) / 3600000;
+}
+
 function getPriorPeriodDates(currentDates, period) {
   const from = new Date(currentDates.dateFrom + 'T00:00:00Z');
   const to = new Date(currentDates.dateTo + 'T00:00:00Z');
@@ -198,37 +223,33 @@ async function fetchTicketPage(params, offset) {
 
 async function fetchAllTickets(params, maxPages = 20) {
   const PAGE = 300;
-  const PARALLEL = 3;
+  const WAVE = 5;
 
-  const first = await fetchTicketPage(params, 0);
-  if (first.length < PAGE || maxPages <= 1) return first;
+  const tickets = [];
+  let pagesLoaded = 0;
+  let done = false;
 
   // Signature of the first ticket — detects JitBit's wrap-around pagination bug where it returns
   // offset-0 data again once you exceed the real result count (observed on thisquarter closedParams).
-  const firstSig = first[0] ? JSON.stringify(first[0]) : null;
+  let firstSig = null;
 
-  const tickets = [...first];
-  let offset = PAGE;
-  let pagesLoaded = 1;
-
-  while (pagesLoaded < maxPages) {
-    const batchSize = Math.min(PARALLEL, maxPages - pagesLoaded);
-    const offsets = Array.from({ length: batchSize }, (_, i) => offset + i * PAGE);
+  // Fire WAVE page requests at once (e.g. offsets 0,300,600,900,1200), await them together,
+  // then append in order and stop as soon as any page in the wave is short (< 300 rows).
+  while (pagesLoaded < maxPages && !done) {
+    const waveSize = Math.min(WAVE, maxPages - pagesLoaded);
+    const offsets = Array.from({ length: waveSize }, (_, i) => (pagesLoaded + i) * PAGE);
     const batches = await Promise.all(offsets.map(o => fetchTicketPage(params, o)));
 
-    let done = false;
     for (const batch of batches) {
       pagesLoaded++;
       if (firstSig && batch.length > 0 && JSON.stringify(batch[0]) === firstSig) {
         done = true;
         break;
       }
+      if (firstSig === null && batch.length > 0) firstSig = JSON.stringify(batch[0]);
       tickets.push(...batch);
       if (batch.length < PAGE) { done = true; break; }
     }
-
-    if (done) break;
-    offset += batchSize * PAGE;
   }
 
   return tickets;
@@ -394,14 +415,13 @@ module.exports = async function handler(req, res) {
   const isDetailMode = req.query.detail === 'true';
   const isLongPeriod = period === 'thisquarter' || period === 'thisyear';
 
-  const cacheKey = `${period}|${sectionId ?? ''}`;
+  const cacheKey = `${period}|${sectionId ?? ''}|${isDetailMode ? 'detail' : 'summary'}`;
   const ttl = CACHE_TTL_MS[period] ?? 25_000;
   const cached = _serverCache.get(cacheKey);
   if (cached) {
     const elapsed = Date.now() - cached.at;
     if (elapsed < ttl) {
-      const remainingS = Math.max(1, Math.floor((ttl - elapsed) / 1000));
-      res.setHeader('Cache-Control', `public, max-age=${remainingS}, stale-while-revalidate=${Math.floor(ttl / 1000)}`);
+      setCacheHeaders(res, period);
       return res.status(200).json(cached.data);
     }
   }
@@ -426,6 +446,7 @@ module.exports = async function handler(req, res) {
           .map(u => u.Email || u.Username);
       }
 
+      setCacheHeaders(res, period);
       return res.status(200).json({
         ok: true,
         timestamp: now.toISOString(),
@@ -466,7 +487,6 @@ module.exports = async function handler(req, res) {
     const currentDates = getPeriodDates(period);
     const priorDates = getPriorPeriodDates(currentDates, period);
     const now = new Date();
-    const currentHour = now.getUTCHours();
 
     // Skip prior-period fetch for long periods — too many paginated calls, delta not meaningful at year scale
     const skipDelta = period === 'thisquarter' || period === 'thisyear';
@@ -488,7 +508,8 @@ module.exports = async function handler(req, res) {
     const openedCount        = currentMetrics.openedTickets.length;
     const closedCount        = currentMetrics.closedTickets.length;
     const uniqueSubmitters   = new Set(currentMetrics.openedTickets.map(t => t.UserID).filter(id => id != null)).size;
-    const ticketsPerHour     = currentHour > 0 ? Math.round((openedCount / currentHour) * 100) / 100 : 0;
+    const currentSpanHours   = periodHours(currentDates, now);
+    const ticketsPerHour     = currentSpanHours > 0 ? Math.round((openedCount / currentSpanHours) * 100) / 100 : 0;
     const ticketsPerDay      = openedCount;
 
     const responseTime   = calcResponseTime(currentMetrics.openedTickets);
@@ -497,7 +518,8 @@ module.exports = async function handler(req, res) {
     const priorOpened          = priorMetrics.openedTickets.length;
     const priorClosed          = priorMetrics.closedTickets.length;
     const priorUniqueSubmitters = new Set(priorMetrics.openedTickets.map(t => t.UserID).filter(id => id != null)).size;
-    const priorPerHour         = currentHour > 0 ? Math.round((priorOpened / currentHour) * 100) / 100 : 0;
+    const priorSpanHours       = periodHours(priorDates, now);
+    const priorPerHour         = priorSpanHours > 0 ? Math.round((priorOpened / priorSpanHours) * 100) / 100 : 0;
     const priorPerDay          = priorOpened;
 
     let techsOnline = [];
@@ -557,8 +579,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const maxAge = Math.floor(ttl / 1000);
-    res.setHeader('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`);
+    setCacheHeaders(res, period);
     return res.status(200).json(payload);
   } catch (err) {
     const status = err.status === 401 ? 401 : 502;
