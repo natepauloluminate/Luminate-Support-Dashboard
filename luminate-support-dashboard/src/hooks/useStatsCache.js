@@ -88,15 +88,32 @@ export function useStatsCache(section) {
             if (v?.detailPending && !_pendingDetails.has(detailKey)) {
               _pendingDetails.add(detailKey);
               (async () => {
+                // Retry the background detail fetch so a transient failure (a one-off 5xx,
+                // a network blip, a slow cold compute) can never strand the cards on a
+                // spinner forever — the detail data WILL eventually come in.
+                const params = new URLSearchParams({ period: p, detail: 'true' });
+                if (section) params.set('section', section);
+                const url = `${BASE_URL}/api/jitbit/stats?${params}`;
                 try {
-                  const params = new URLSearchParams({ period: p, detail: 'true' });
-                  if (section) params.set('section', section);
-                  const r = await fetch(`${BASE_URL}/api/jitbit/stats?${params}`);
-                  if (!r.ok || cancelled) return;
-                  const data = await r.json();
-                  _cache.set(detailKey, data);
-                  if (!cancelled) setByPeriod(prev => ({ ...prev, [p]: data }));
-                } catch { /* silent */ } finally {
+                  for (let attempt = 0; attempt < 8 && !cancelled; attempt++) {
+                    try {
+                      const r = await fetch(url);
+                      if (cancelled) return;
+                      if (r.ok) {
+                        const data = await r.json();
+                        // detail=true never returns detailPending; guard anyway so a
+                        // summary-shaped response is treated as not-done and retried.
+                        if (!data.detailPending) {
+                          _cache.set(detailKey, data);
+                          if (!cancelled) setByPeriod(prev => ({ ...prev, [p]: data }));
+                          return;
+                        }
+                      }
+                    } catch { /* network error — fall through to backoff + retry */ }
+                    // Backoff: 3s, 6s, 9s … capped, so we keep trying without hammering.
+                    await new Promise(res => setTimeout(res, Math.min((attempt + 1) * 3000, 15000)));
+                  }
+                } finally {
                   _pendingDetails.delete(detailKey);
                 }
               })();
