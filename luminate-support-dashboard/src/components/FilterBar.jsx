@@ -30,11 +30,16 @@ export default function FilterBar({
   const [overviewHover,  setOverviewHover]  = useState(false);
   const [analyticsHover, setAnalyticsHover] = useState(false);
   const [slaHover,       setSlaHover]       = useState(false);
+  const [wgHover,        setWgHover]        = useState(false);
 
   const isOverview  = location.pathname === '/';
   const isAnalytics = location.pathname === '/analytics';
   const isSLA       = location.pathname === '/sla';
+  const isWG        = location.pathname === '/wg-onboarding';
   const showFilters = !isSLA;
+  // Section filter is additionally hidden on the WG Onboarding route (fixed to a
+  // single section), while the period filter still uses showFilters unchanged.
+  const showSectionFilter = showFilters && !isWG;
 
   const activeTab = {
     background: 'var(--purple)',
@@ -108,7 +113,7 @@ export default function FilterBar({
       )}
 
       {/* Section select */}
-      {showFilters && (
+      {showSectionFilter && (
         <div style={{ position: 'relative' }}>
           <select style={selectStyle} value={section} onChange={e => setSection(e.target.value)}>
             {SECTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -164,6 +169,14 @@ export default function FilterBar({
           onMouseLeave={() => setSlaHover(false)}
         >
           SLA
+        </button>
+        <button
+          style={isWG ? activeTab : inactiveTab(wgHover)}
+          onClick={() => navigate('/wg-onboarding')}
+          onMouseEnter={() => setWgHover(true)}
+          onMouseLeave={() => setWgHover(false)}
+        >
+          WG Onboarding
         </button>
       </div>
 
